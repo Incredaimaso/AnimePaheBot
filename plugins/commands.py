@@ -44,7 +44,7 @@ def start(client, message):
     client.send_photo(
         chat_id=message.chat.id,
         photo=start_pic,
-        caption="👋 Welcome to the Anime PaheBot! \n\nUse the buttons below for assistance or to contact the owner",
+        caption="👋 Welcome to the Anime Downloader Bot! \n\nUse the buttons below for assistance or to contact the owner",
         reply_markup=reply_markup
     )
 
