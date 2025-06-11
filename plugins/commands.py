@@ -31,7 +31,7 @@ def start(client, message):
     # Create inline buttons
     buttons = [
         [
-            InlineKeyboardButton("Owner", url="https://t.me/r4h4t_69"),
+            InlineKeyboardButton("Owner", url="https://telegram.dog/linesorthreads"),
             InlineKeyboardButton("Help", callback_data="help")
         ],
         [
