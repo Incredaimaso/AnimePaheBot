@@ -151,6 +151,7 @@ def search_anime(client, message):
         return
 
     search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
+    print(f"Trying to fetch: {search_url}")
     response = session.get(search_url).json()
 
     if response['total'] == 0:
