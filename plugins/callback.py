@@ -11,6 +11,7 @@ from plugins.headers import*
 from plugins.file import*
 from plugins.commands import user_queries
 from helper.database import*
+from helpers.utils import*
 from config import DOWNLOAD_DIR
 from bs4 import BeautifulSoup
 import re
