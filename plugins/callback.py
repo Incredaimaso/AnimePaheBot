@@ -209,7 +209,7 @@ def change_upload_method(client, callback_query):
 
 
 @Client.on_callback_query(filters.regex(r"^dl_"))
-def download_and_upload_file(client, callback_query):
+async def download_and_upload_file(client, callback_query):
     download_url = callback_query.data.split("dl_")[1]
     kwik_link = extract_kwik_link(download_url)
 
