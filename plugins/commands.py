@@ -24,14 +24,14 @@ def start(client, message):
         try:
             add_user(id)
         except Exception as e:
-            client.send_message(-1002457905787, f"{e}")
+            client.send_message(-100243227575, f"{e}")
             pass
     start_pic = random.choice(START_PIC)
     
     # Create inline buttons
     buttons = [
         [
-            InlineKeyboardButton("Owner", url="https://t.me/r4h4t_69"),
+            InlineKeyboardButton("Owner", url="https://t.me/LinesOrThreads"),
             InlineKeyboardButton("Help", callback_data="help")
         ],
         [
@@ -44,7 +44,7 @@ def start(client, message):
     client.send_photo(
         chat_id=message.chat.id,
         photo=start_pic,
-        caption="👋 Welcome to the Anime PaheBot! \n\nUse the buttons below for assistance or to contact the owner",
+        caption="👋 Welcome to the Anime Downloader Bot! \n\nUse the buttons below for assistance or to contact the owner",
         reply_markup=reply_markup
     )
 
@@ -142,7 +142,7 @@ def search_anime(client, message):
         try:
             add_user(id)
         except Exception as e:
-            client.send_message(-1002457905787, f"{e}")
+            client.send_message(-1002432275758, f"{e}")
             pass
     try:
         query = message.text.split("/anime ", maxsplit=1)[1]
@@ -165,7 +165,7 @@ def search_anime(client, message):
     reply_markup = InlineKeyboardMarkup(anime_buttons)
     # Reply to the same message with anime title buttons
     #message.reply_text("Select an anime:", reply_markup=reply_markup, quote=True)
-    gif_url = "https://telegra.ph/file/33067bb12f7165f8654f9.mp4"
+    gif_url = "https://envs.sh/M1J.png?i7w1m=1"
     message.reply_video(
         #chat_id=message.chat.id,
         video=gif_url,
@@ -281,7 +281,7 @@ def send_latest_anime(client, message):
             message.reply_text(f"Failed to fetch data from the API. Status code: {response.status_code}")
     
     except Exception as e:
-        client.send_message(-1002457905787, f"Error: {e}")
+        client.send_message(-100243227575, f"Error: {e}")
         message.reply_text("Something went wrong. Please try again later.")
 
 
