@@ -9,7 +9,7 @@ commands:
   build:
     - "pip install -r requirements.txt"
   package:
-    - "nano inxi"
+    - "ffmpeg"
   start:
     - "python3 bot.py"
 
