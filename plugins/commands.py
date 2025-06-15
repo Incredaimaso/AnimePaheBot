@@ -143,33 +143,32 @@ async def search_anime(client, message):
             add_user(id)
         except Exception as e:
             await client.send_message(-1002457905787, f"{e}")
-    
+
     try:
         query = message.text.split("/anime ", maxsplit=1)[1]
     except IndexError:
         await message.reply_text("Usage: <code>/anime anime_name</code>")
         return
 
-    print(f"Trying to fetch: {query}")
-    from plugins.headers import get_api_json  # Import inside async to avoid blocking
+    from plugins.headers import search_anime_html
+    await message.reply_text("🔍 Searching anime, please wait...")
+    results = await search_anime_html(query)
 
-    response = await get_api_json(query)
-
-    if not response or response.get("total", 0) == 0:
-        await message.reply_text("Anime not found or fetch blocked.")
+    if not results:
+        await message.reply_text("❌ No anime found or blocked.")
         return
 
     user_queries[message.chat.id] = query
-    anime_buttons = [
-        [InlineKeyboardButton(anime['title'], callback_data=f"anime_{anime['session']}")]
-        for anime in response['data']
+    buttons = [
+        [InlineKeyboardButton(res['title'], callback_data=f"anime_{res['session']}")]
+        for res in results
     ]
 
     gif_url = "https://envs.sh/mW8.png?n10Sy=1"
     await message.reply_video(
         video=gif_url,
         caption=f"Search Result For <code>{query}</code>",
-        reply_markup=InlineKeyboardMarkup(anime_buttons),
+        reply_markup=InlineKeyboardMarkup(buttons),
         quote=True
     )
     
