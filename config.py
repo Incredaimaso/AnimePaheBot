@@ -9,7 +9,7 @@ BOT_TOKEN = "7070324312:AAFObFG5cnn0zs5oCRYN4fRFQMX3LICVM8w"
 #Logs
 LOG_CHANNEL = "-1002432275758" 
 # MongoDB setup
-MONGO_URL = "mongodb+srv://sumitsajwan135:<gameno01>@cluster0.ja0i0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URL = "mongodb+srv://sumitsajwan135:gameno01@cluster0.ja0i0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 DB_NAME = "AnimeDl"
 
 DOWNLOAD_DIR = "./downloads"
