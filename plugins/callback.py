@@ -297,6 +297,7 @@ async def download_and_upload_file(client, callback_query):
             if now - progress.last_update >= 5 or current == total:
                 speed = current / (now - start_time + 1e-3)
                 eta = (total - current) / speed if speed > 0 else 0
+
                 progress_text = format_upload_progress(
                     filename=file_name,
                     uploaded=current,
@@ -305,12 +306,19 @@ async def download_and_upload_file(client, callback_query):
                     eta=eta,
                     mode=get_upload_method(user_id).capitalize()
                 )
-                try:
-                    await dl_msg.edit_text(progress_text)
-                except:
-                    pass
+
+                if progress.last_text != progress_text:
+                    try:
+                        await dl_msg.edit_text(progress_text)
+                        progress.last_text = progress_text
+                    except:
+                        pass
+
                 progress.last_update = now
+
         progress.last_update = 0
+        progress.last_text = ""
+
 
         upload_method = get_upload_method(user_id)
 
