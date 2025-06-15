@@ -136,25 +136,27 @@ def set_upload_options(client, message):
 
 # Command: Search anime
 @Client.on_message(filters.command("anime") & filters.private)
-def search_anime(client, message):
+async def search_anime(client, message):
     id = message.from_user.id
     if not present_user(id):
         try:
             add_user(id)
         except Exception as e:
-            client.send_message(-1002457905787, f"{e}")
+            await client.send_message(-1002457905787, f"{e}")
     
     try:
         query = message.text.split("/anime ", maxsplit=1)[1]
     except IndexError:
-        message.reply_text("Usage: <code>/anime anime_name</code>")
+        await message.reply_text("Usage: <code>/anime anime_name</code>")
         return
 
     print(f"Trying to fetch: {query}")
-    response = get_api_json(query)
+    from plugins.headers import get_api_json  # Import inside async to avoid blocking
+
+    response = await get_api_json(query)
 
     if not response or response.get("total", 0) == 0:
-        message.reply_text("Anime not found or fetch blocked.")
+        await message.reply_text("Anime not found or fetch blocked.")
         return
 
     user_queries[message.chat.id] = query
@@ -164,7 +166,7 @@ def search_anime(client, message):
     ]
 
     gif_url = "https://envs.sh/mW8.png?n10Sy=1"
-    message.reply_video(
+    await message.reply_video(
         video=gif_url,
         caption=f"Search Result For <code>{query}</code>",
         reply_markup=InlineKeyboardMarkup(anime_buttons),
