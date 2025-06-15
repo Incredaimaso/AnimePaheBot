@@ -287,41 +287,57 @@ def download_and_upload_file(client, callback_query):
         user_caption = get_caption(user_id)
         caption_to_use = user_caption if user_caption else file_name
 
-        # Upload
-        from helper.utils import format_upload_progress
+        # Upload with progress
+        chat_id = callback_query.message.chat.id
+        start_time = time.time()
 
-chat_id = callback_query.message.chat.id
-start_time = time.time()
+        async def progress(current, total):
+            now = time.time()
+            if now - progress.last_update >= 5 or current == total:
+                speed = current / (now - start_time + 1e-3)
+                eta = (total - current) / speed if speed > 0 else 0
+                progress_text = format_upload_progress(
+                    filename=file_name,
+                    uploaded=current,
+                    total=total,
+                    speed=speed,
+                    eta=eta,
+                    mode=get_upload_method(user_id).capitalize()
+                )
+                try:
+                    await dl_msg.edit_text(progress_text)
+                except:
+                    pass
+                progress.last_update = now
+        progress.last_update = 0
 
-async def progress(current, total):
-    now = time.time()
-    if now - progress.last_update >= 5 or current == total:
-        speed = current / (now - start_time + 1e-3)
-        eta = (total - current) / speed if speed > 0 else 0
-        progress_text = format_upload_progress(
-            filename=file_name,
-            uploaded=current,
-            total=total,
-            speed=speed,
-            eta=eta,
-            mode=get_upload_method(user_id).capitalize()
-        )
-        try:
-            dl_msg.edit_text(progress_text)
-        except:
-            pass
-        progress.last_update = now
-progress.last_update = 0
+        upload_method = get_upload_method(user_id)
 
+        if upload_method == "document":
+            await client.send_document(
+                chat_id=chat_id,
+                document=download_path,
+                thumb=thumb_path,
+                caption=caption_to_use,
+                progress=progress
+            )
+        else:
+            await client.send_video(
+                chat_id=chat_id,
+                video=download_path,
+                thumb=thumb_path,
+                caption=caption_to_use,
+                progress=progress
+            )
+
+        # Mark complete and clean up
+        await dl_msg.edit_text("<b><pre>Episode Uploaded 🎉</pre></b>")
         remove_from_queue(user_id, direct_link)
-
-        dl_msg.edit("<b><pre>Episode Uploaded 🎉</pre></b>")
 
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
         if os.path.exists(user_download_dir):
             remove_directory(user_download_dir)
-
     except Exception as e:
         callback_query.message.reply_text(f"❌ Error during download/upload:\n<code>{str(e)}</code>")
 
