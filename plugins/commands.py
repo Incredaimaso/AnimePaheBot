@@ -65,6 +65,17 @@ def set_thumbnail(client, message):
     save_thumbnail(message.from_user.id, file_id)
     message.reply_text("Thumbnail saved successfully!")
 
+@Client.on_message(filters.command("file") & filters.private)
+def set_filename_format(client, message):
+    user_id = message.from_user.id
+
+    try:
+        format_string = message.text.split("/file ", 1)[1]
+        save_filename_format(user_id, format_string)
+        message.reply_text(f"✅ Filename format saved:\n<code>{format_string}</code>")
+    except IndexError:
+        message.reply_text("❌ Usage:\n<code>/file {episode_number} - {title} [{resolution}] [{type}] @ChannelName</code>")
+
 # Command: See thumbnail
 @Client.on_message(filters.command("see_thumb") & filters.private)
 def see_thumbnail(client, message):
