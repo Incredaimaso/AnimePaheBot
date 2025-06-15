@@ -348,7 +348,7 @@ async def download_and_upload_file(client, callback_query):
         if os.path.exists(user_download_dir):
             remove_directory(user_download_dir)
     except Exception as e:
-        callback_query.message.reply_text(f"❌ Error during download/upload:\n<code>{str(e)}</code>")
+       await callback_query.message.reply_text(f"❌ Error during download/upload:\n<code>{str(e)}</code>")
 
 
 # Callback query handler for Help and Close buttons
