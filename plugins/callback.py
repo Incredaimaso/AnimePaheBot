@@ -241,11 +241,29 @@ def download_and_upload_file(client, callback_query):
     # Create the filename
     title = f"{title}"
     short_name = create_short_name(title)	
-    file_name = f"[{type}] [{short_name}] [EP {episode_number}] [{resolution}]"
-    file_name = file_name + ".mp4"
-    filename = sanitize_filename(file_name)
-    file_name = filename
-    random_str = random_string(5)
+    format_template = get_filename_format(user_id)
+    title = episode_data.get(user_id, {}).get('title', 'Unknown Title')
+short_name = create_short_name(title)
+
+# Get user-defined filename format
+format_template = get_filename_format(user_id)
+
+try:
+    # Format filename with placeholders
+    file_name = format_template.format(
+        episode_number=episode_number,
+        title=short_name,
+        resolution=resolution,
+        type=type
+    )
+except KeyError as e:
+    callback_query.message.reply_text(f"❌ Invalid placeholder used in filename format: {str(e)}")
+    return
+
+# Add .mp4 and sanitize
+file_name = sanitize_filename(file_name + ".mp4")
+
+random_str = random_string(5)
 
     # Define download path
     user_download_dir = os.path.join(DOWNLOAD_DIR, str(user_id), random_str)
