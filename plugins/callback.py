@@ -261,7 +261,7 @@ async def download_and_upload_file(client, callback_query):
     os.makedirs(user_download_dir, exist_ok=True)
     download_path = os.path.join(user_download_dir, file_name)
 
-    dl_msg = callback_query.message.reply_text(
+    dl_msg = await callback_query.message.reply_text(
         f"<b>Added to queue:</b>\n<pre>{file_name}</pre>\n<b>Downloading now...</b>"
     )
 
