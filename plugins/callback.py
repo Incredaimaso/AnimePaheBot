@@ -288,7 +288,31 @@ def download_and_upload_file(client, callback_query):
         caption_to_use = user_caption if user_caption else file_name
 
         # Upload
-        send_and_delete_file(client, callback_query.message.chat.id, download_path, thumb_path, caption_to_use, user_id)
+        from helper.utils import format_upload_progress
+
+chat_id = callback_query.message.chat.id
+start_time = time.time()
+
+async def progress(current, total):
+    now = time.time()
+    if now - progress.last_update >= 5 or current == total:
+        speed = current / (now - start_time + 1e-3)
+        eta = (total - current) / speed if speed > 0 else 0
+        progress_text = format_upload_progress(
+            filename=file_name,
+            uploaded=current,
+            total=total,
+            speed=speed,
+            eta=eta,
+            mode=get_upload_method(user_id).capitalize()
+        )
+        try:
+            dl_msg.edit_text(progress_text)
+        except:
+            pass
+        progress.last_update = now
+progress.last_update = 0
+
         remove_from_queue(user_id, direct_link)
 
         dl_msg.edit("<b><pre>Episode Uploaded 🎉</pre></b>")
