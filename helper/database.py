@@ -12,7 +12,13 @@ captions_col = db["captions"]
 upload_method_col = db["upload_methods"]
 user_data_col = db['users']
 
+filename_format_dict = {}
 
+def save_filename_format(user_id, format_str):
+    filename_format_dict[user_id] = format_str
+
+def get_filename_format(user_id):
+    return filename_format_dict.get(user_id, "EP{episode_number} - {title} [{resolution}] [{type}]")
 
 # Utility: Save thumbnail
 def save_thumbnail(user_id, file_id):
