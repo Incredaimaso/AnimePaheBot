@@ -31,7 +31,7 @@ def start(client, message):
     # Create inline buttons
     buttons = [
         [
-            InlineKeyboardButton("Owner", url="https://telegram.dog/linesorthreads"),
+            InlineKeyboardButton("Owner", url="https://t.me/r4h4t_69"),
             InlineKeyboardButton("Help", callback_data="help")
         ],
         [
@@ -44,7 +44,7 @@ def start(client, message):
     client.send_photo(
         chat_id=message.chat.id,
         photo=start_pic,
-        caption="👋 Welcome to the Anime Downloader Bot! \n\nUse the buttons below for assistance or to contact the owner",
+        caption="👋 Welcome to the Anime PaheBot! \n\nUse the buttons below for assistance or to contact the owner",
         reply_markup=reply_markup
     )
 
@@ -136,39 +136,41 @@ def set_upload_options(client, message):
 
 # Command: Search anime
 @Client.on_message(filters.command("anime") & filters.private)
-async def search_anime(client, message):
+def search_anime(client, message):
     id = message.from_user.id
     if not present_user(id):
         try:
             add_user(id)
         except Exception as e:
-            await client.send_message(-1002457905787, f"{e}")
-
+            client.send_message(-1002457905787, f"{e}")
+            pass
     try:
         query = message.text.split("/anime ", maxsplit=1)[1]
     except IndexError:
-        await message.reply_text("Usage: <code>/anime anime_name</code>")
+        message.reply_text(f"Usage: <code> /anime anime_name</code>")
         return
 
-    from plugins.headers import search_anime_html
-    await message.reply_text("🔍 Searching anime, please wait...")
-    results = await search_anime_html(query)
+    search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
+    response = session.get(search_url).json()
 
-    if not results:
-        await message.reply_text("❌ No anime found or blocked.")
+    if response['total'] == 0:
+        message.reply_text("Anime not found.")
         return
 
     user_queries[message.chat.id] = query
-    buttons = [
-        [InlineKeyboardButton(res['title'], callback_data=f"anime_{res['session']}")]
-        for res in results
+    anime_buttons = [
+        [InlineKeyboardButton(anime['title'], callback_data=f"anime_{anime['session']}")]
+        for anime in response['data']
     ]
-
-    gif_url = "https://envs.sh/mW8.png?n10Sy=1"
-    await message.reply_video(
+    reply_markup = InlineKeyboardMarkup(anime_buttons)
+    # Reply to the same message with anime title buttons
+    #message.reply_text("Select an anime:", reply_markup=reply_markup, quote=True)
+    gif_url = "https://telegra.ph/file/33067bb12f7165f8654f9.mp4"
+    message.reply_video(
+        #chat_id=message.chat.id,
         video=gif_url,
-        caption=f"Search Result For <code>{query}</code>",
-        reply_markup=InlineKeyboardMarkup(buttons),
+        caption=f"Search Reasult For <code>{query}</code>",
+        reply_markup=reply_markup,
         quote=True
     )
     
@@ -254,8 +256,7 @@ def send_latest_anime(client, message):
     try:
         # Fetch the latest airing anime from AnimePahe
         API_URL = "https://animepahe.ru/api?m=airing&page=1"
-        html = get_html(API_URL)
-        response = json.loads(html)
+        response = session.get(API_URL)
         if response.status_code == 200:
             data = response.json()
             anime_list = data.get('data', [])
@@ -289,8 +290,7 @@ def send_latest_anime(client, message):
     try:
         # Fetch the latest airing anime from AnimePahe
         API_URL = "https://animepahe.ru/anime/airing"
-        html = get_html(API_URL)
-        soup = BeautifulSoup(html, "html.parser")
+        response = session.get(API_URL)
         if response.status_code == 200:          
             soup = BeautifulSoup(response.text, "html.parser")
 
