@@ -19,7 +19,7 @@ def time_formatter(seconds):
 def progress_bar(progress, total, length=20):
     percent = progress / total
     filled = int(length * percent)
-    bar = "▣" * filled + "▢" * (length - filled)
+    bar = "▰" * filled + "▱" * (length - filled)
     return f"[{bar}]"
 
 def format_upload_progress(filename, uploaded, total, speed, eta, mode):
