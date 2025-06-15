@@ -143,19 +143,18 @@ def search_anime(client, message):
             add_user(id)
         except Exception as e:
             client.send_message(-1002457905787, f"{e}")
-            pass
+    
     try:
         query = message.text.split("/anime ", maxsplit=1)[1]
     except IndexError:
-        message.reply_text(f"Usage: <code> /anime anime_name</code>")
+        message.reply_text("Usage: <code>/anime anime_name</code>")
         return
 
-    search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
-    print(f"Trying to fetch: {search_url}")
-    response = session.get(search_url).json()
+    print(f"Trying to fetch: {query}")
+    response = get_api_json(query)
 
-    if response['total'] == 0:
-        message.reply_text("Anime not found.")
+    if not response or response.get("total", 0) == 0:
+        message.reply_text("Anime not found or fetch blocked.")
         return
 
     user_queries[message.chat.id] = query
@@ -163,15 +162,12 @@ def search_anime(client, message):
         [InlineKeyboardButton(anime['title'], callback_data=f"anime_{anime['session']}")]
         for anime in response['data']
     ]
-    reply_markup = InlineKeyboardMarkup(anime_buttons)
-    # Reply to the same message with anime title buttons
-    #message.reply_text("Select an anime:", reply_markup=reply_markup, quote=True)
+
     gif_url = "https://envs.sh/mW8.png?n10Sy=1"
     message.reply_video(
-        #chat_id=message.chat.id,
         video=gif_url,
-        caption=f"Search Reasult For <code>{query}</code>",
-        reply_markup=reply_markup,
+        caption=f"Search Result For <code>{query}</code>",
+        reply_markup=InlineKeyboardMarkup(anime_buttons),
         quote=True
     )
     
@@ -257,7 +253,8 @@ def send_latest_anime(client, message):
     try:
         # Fetch the latest airing anime from AnimePahe
         API_URL = "https://animepahe.ru/api?m=airing&page=1"
-        response = session.get(API_URL)
+        html = get_html(API_URL)
+        response = json.loads(html)
         if response.status_code == 200:
             data = response.json()
             anime_list = data.get('data', [])
@@ -291,7 +288,8 @@ def send_latest_anime(client, message):
     try:
         # Fetch the latest airing anime from AnimePahe
         API_URL = "https://animepahe.ru/anime/airing"
-        response = session.get(API_URL)
+        html = get_html(API_URL)
+        soup = BeautifulSoup(html, "html.parser")
         if response.status_code == 200:          
             soup = BeautifulSoup(response.text, "html.parser")
 
