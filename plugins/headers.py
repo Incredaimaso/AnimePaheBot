@@ -1,24 +1,30 @@
-#..........This Bot Made By [RAHAT](https://t.me/r4h4t_69)..........#
-#..........Anyone Can Modify This As He Likes..........#
-#..........Just one requests do not remove my credit..........#
+import asyncio
+import json
+from pyppeteer import launch
 
+HEADERS = {
+    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+}
 
-import requests
+async def _fetch_html(url):
+    browser = await launch(headless=True, args=['--no-sandbox'])
+    try:
+        page = await browser.newPage()
+        await page.setUserAgent(HEADERS['user-agent'])
+        await page.goto(url, {'waitUntil': 'networkidle2', 'timeout': 60000})
+        await asyncio.sleep(4)
+        return await page.content()
+    finally:
+        await browser.close()
 
-session = requests.Session()
-session.headers.update({
-    'authority': 'animepahe.ru',
-    'accept': 'application/json, text/javascript, */*; q=0.01',
-    'accept-language': 'en-US,en;q=0.9',
-    'cookie': '__ddg2_=;',
-    'dnt': '1',
-    'sec-ch-ua': '"Not A(Brand";v="99", "Microsoft Edge";v="121", "Chromium";v="121"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'sec-fetch-dest': 'empty',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-site': 'same-origin',
-    'x-requested-with': 'XMLHttpRequest',
-    'referer': 'https://animepahe.ru',
-    'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-})
+def get_html(url: str) -> str:
+    return asyncio.get_event_loop().run_until_complete(_fetch_html(url))
+
+def get_api_json(query: str):
+    url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
+    html = get_html(url)
+    try:
+        return json.loads(html)
+    except json.JSONDecodeError:
+        print("❌ JSON decode failed. Possibly a JS challenge page.")
+        return None
