@@ -6,7 +6,7 @@ HEADERS = {
     'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
 }
 
-async def _fetch_html(url):
+async def get_html(url: str) -> str:
     browser = await launch(headless=True, args=['--no-sandbox'])
     try:
         page = await browser.newPage()
@@ -17,12 +17,9 @@ async def _fetch_html(url):
     finally:
         await browser.close()
 
-def get_html(url: str) -> str:
-    return asyncio.get_event_loop().run_until_complete(_fetch_html(url))
-
-def get_api_json(query: str):
+async def get_api_json(query: str):
     url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
-    html = get_html(url)
+    html = await get_html(url)
     try:
         return json.loads(html)
     except json.JSONDecodeError:
