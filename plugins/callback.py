@@ -217,70 +217,58 @@ def download_and_upload_file(client, callback_query):
     except Exception as e:
         callback_query.message.reply_text(f"Error generating download link: {str(e)}")
         return
+
     username = callback_query.from_user.username or "Unknown User"
     user_id = callback_query.from_user.id
     add_to_queue(user_id, username, direct_link)
-    # Retrieve episode number from episode_data
-    episode_number = episode_data.get(user_id, {}).get('current_episode', 'Unknown')  # Default to 'Unknown Episode'
-    title = episode_data.get(user_id, {}).get('title', 'Unknown Title')  # Default to 'Unknown Title'
 
-    # Extract download button title
+    # Retrieve episode number and title
+    episode_number = episode_data.get(user_id, {}).get('current_episode', 'Unknown')
+    title = episode_data.get(user_id, {}).get('title', 'Unknown Title')
+
+    # Get quality & type from button
     download_button_title = next(
         (button.text for row in callback_query.message.reply_markup.inline_keyboard
          for button in row if button.callback_data == f"dl_{download_url}"),
         "Unknown Source"
     )
 
-    # Create the filename
     resolution = re.search(r"\b\d{3,4}p\b", download_button_title)
     resolution = resolution.group() if resolution else download_button_title
-    if 'eng' in download_button_title:
-	    type = "Dub"
-    else:
-	    type = "Sub"
-    # Create the filename
-    title = f"{title}"
-    short_name = create_short_name(title)	
+    type = "Dub" if 'eng' in download_button_title.lower() else "Sub"
+
+    # === Filename generation ===
+    short_name = create_short_name(title)
     format_template = get_filename_format(user_id)
-    title = episode_data.get(user_id, {}).get('title', 'Unknown Title')
-short_name = create_short_name(title)
 
-# Get user-defined filename format
-format_template = get_filename_format(user_id)
+    try:
+        file_name = format_template.format(
+            episode_number=episode_number,
+            title=short_name,
+            resolution=resolution,
+            type=type
+        )
+    except KeyError as e:
+        callback_query.message.reply_text(f"❌ Invalid placeholder in format: {str(e)}")
+        return
 
-try:
-    # Format filename with placeholders
-    file_name = format_template.format(
-        episode_number=episode_number,
-        title=short_name,
-        resolution=resolution,
-        type=type
-    )
-except KeyError as e:
-    callback_query.message.reply_text(f"❌ Invalid placeholder used in filename format: {str(e)}")
-    return
+    file_name = sanitize_filename(file_name + ".mp4")
+    random_str = random_string(5)
 
-# Add .mp4 and sanitize
-file_name = sanitize_filename(file_name + ".mp4")
-
-random_str = random_string(5)
-
-    # Define download path
+    # File paths
     user_download_dir = os.path.join(DOWNLOAD_DIR, str(user_id), random_str)
     os.makedirs(user_download_dir, exist_ok=True)
     download_path = os.path.join(user_download_dir, file_name)
 
-    #callback_query.message.reply_text(f"Added to queue: {file_name}. Downloading now...")
-    #dl_msg = callback_query.message.reply_text(f"<b>Added to queue:</b>\n <pre language="python">{file_name}</pre>\n<b>Downloading now...</b>")
-    dl_msg = callback_query.message.reply_text(f"<b>Added to queue:</b>\n <pre>{file_name}</pre>\n<b>Downloading now...</b>")
-    
+    dl_msg = callback_query.message.reply_text(
+        f"<b>Added to queue:</b>\n<pre>{file_name}</pre>\n<b>Downloading now...</b>"
+    )
+
     try:
-        # Download the file
         download_file(direct_link, download_path)
-        #callback_query.message.reply_text("File downloaded, uploading...")
         dl_msg.edit("<b>Episode downloaded, uploading...</b>")
 
-        # Fetch thumbnail
+        # Thumbnail logic
         user_thumbnail = get_thumbnail(user_id)
         poster_url = episode_data.get(user_id, {}).get("poster", None)
 
@@ -288,28 +276,31 @@ random_str = random_string(5)
             thumb_path = client.download_media(user_thumbnail)
         elif poster_url:
             response = requests.get(poster_url, stream=True)
-            thumb_path = f"{user_download_dir}/thumb_file.jpg"
+            thumb_path = os.path.join(user_download_dir, "thumb_file.jpg")
             with open(thumb_path, 'wb') as thumb_file:
                 for chunk in response.iter_content(1024):
                     thumb_file.write(chunk)
         else:
             thumb_path = None
 
-        # Send the file
+        # Final caption
         user_caption = get_caption(user_id)
-        caption_to_use = user_caption if user_caption else file_name        
+        caption_to_use = user_caption if user_caption else file_name
 
+        # Upload
         send_and_delete_file(client, callback_query.message.chat.id, download_path, thumb_path, caption_to_use, user_id)
-        # Remove the thumbnail file if it was downloaded
         remove_from_queue(user_id, direct_link)
-        dl_msg.edit(f"<b><pre>Episode Uploaded 🎉</pre></b>")
+
+        dl_msg.edit("<b><pre>Episode Uploaded 🎉</pre></b>")
+
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
-        if user_download_dir and os.path.exists(user_download_dir):
-            remove_directory(user_download_dir)        
+        if os.path.exists(user_download_dir):
+            remove_directory(user_download_dir)
 
     except Exception as e:
-        callback_query.message.reply_text(f"Error: {str(e)}")
+        callback_query.message.reply_text(f"❌ Error during download/upload:\n<code>{str(e)}</code>")
+
 
 # Callback query handler for Help and Close buttons
 @Client.on_callback_query()
