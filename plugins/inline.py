@@ -2,6 +2,7 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent, InlineKeyboardMarkup, InlineKeyboardButton
 import uuid
 from plugins.headers import session  # ensure this is correct
+from plugins.commands import user_queries
 
 @Client.on_inline_query()
 async def inline_search(client: Client, inline_query: InlineQuery):
