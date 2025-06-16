@@ -267,7 +267,7 @@ async def download_and_upload_file(client, callback_query):
 
     try:
         download_file(direct_link, download_path)
-        await dl_msg.edit("<b>Episode downloaded, uploading...</b>")
+        await dl_msg.edit_text("<b>Episode downloaded, uploading...</b>")
 
         # Thumbnail logic
         user_thumbnail = get_thumbnail(user_id)
@@ -283,6 +283,12 @@ async def download_and_upload_file(client, callback_query):
                     thumb_file.write(chunk)
         else:
             thumb_path = None
+
+        if thumb_path and 
+        os.path.exists(thumb_path):
+            thumb_to_send = thumb_path
+        else:
+            thumb_to_send = None
 
         # Final caption
         user_caption = get_caption(user_id)
@@ -326,7 +332,7 @@ async def download_and_upload_file(client, callback_query):
             await client.send_document(
                 chat_id=chat_id,
                 document=download_path,
-                thumb=thumb_path,
+                thumb=thumb_to_send,
                 caption=caption_to_use,
                 progress=progress
             )
@@ -334,7 +340,7 @@ async def download_and_upload_file(client, callback_query):
             await client.send_video(
                 chat_id=chat_id,
                 video=download_path,
-                thumb=thumb_path,
+                thumb=thumb_to_send,
                 caption=caption_to_use,
                 progress=progress
             )
