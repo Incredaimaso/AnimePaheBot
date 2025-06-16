@@ -276,7 +276,7 @@ async def download_and_upload_file(client, callback_query):
         if user_thumbnail:
             thumb_path = await client.download_media(user_thumbnail)
         elif poster_url:
-            response = requests.get(poster_url, stream=True)
+            response = requests.get(poster_url, stream=True, timeout=25)
             thumb_path = os.path.join(user_download_dir, "thumb_file.jpg")
             with open(thumb_path, 'wb') as thumb_file:
                 for chunk in response.iter_content(1024):
@@ -284,11 +284,10 @@ async def download_and_upload_file(client, callback_query):
         else:
             thumb_path = None
 
-        if thumb_path and 
-        os.path.exists(thumb_path):
+        if thumb_path and os.path.exists(thumb_path):
             thumb_to_send = thumb_path
         else:
-            thumb_to_send = None
+             thumb_to_send = None
 
         # Final caption
         user_caption = get_caption(user_id)
