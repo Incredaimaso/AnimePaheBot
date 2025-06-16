@@ -3,7 +3,7 @@
 #..........Just one requests do not remove my credit..........#
 
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 import pyrogram.errors
 from bs4 import BeautifulSoup
 from plugins.headers import*
@@ -14,6 +14,20 @@ import random
 import asyncio
 
 user_queries = {}
+
+@Client.on_message(filters.command("log") & filters.user(ADMIN))
+async def send_log_file(client, message: Message):
+    log_file_path = "logs/log.txt"
+
+    try:
+        await message.reply_document(
+            document=log_file_path,
+            caption="📄 Bot Logs"
+        )
+    except FileNotFoundError:
+        await message.reply_text("❌ Log file not found.")
+    except Exception as e:
+        await message.reply_text(f"⚠️ Error sending log file:\n<code>{str(e)}</code>")
 
 
 @Client.on_message(filters.command("start") & filters.private)
