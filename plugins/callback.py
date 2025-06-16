@@ -267,14 +267,14 @@ async def download_and_upload_file(client, callback_query):
 
     try:
         download_file(direct_link, download_path)
-        dl_msg.edit("<b>Episode downloaded, uploading...</b>")
+        await dl_msg.edit("<b>Episode downloaded, uploading...</b>")
 
         # Thumbnail logic
         user_thumbnail = get_thumbnail(user_id)
         poster_url = episode_data.get(user_id, {}).get("poster", None)
 
         if user_thumbnail:
-            thumb_path = client.download_media(user_thumbnail)
+            thumb_path = await client.download_media(user_thumbnail)
         elif poster_url:
             response = requests.get(poster_url, stream=True)
             thumb_path = os.path.join(user_download_dir, "thumb_file.jpg")
