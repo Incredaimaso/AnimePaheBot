@@ -15,7 +15,18 @@ async def inline_search(client: Client, inline_query: InlineQuery):
 
     try:
         url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
-        response = session.get(url).json()
+        response = session.get(search_url)
+        if response.status_code != 200 or not response.content.strip():
+            await inline_query.answer([], cache_time=1)
+            return
+
+        try:
+            data = response.json()
+        except Exception as e:
+            print(f"[ERROR] Failed to parse AnimePahe response: {e}")
+            await inline_query.answer([], cache_time=1)
+            return
+
         results = []
 
         for anime in response.get("data", [])[:10]:
