@@ -8,6 +8,15 @@ from config import API_ID, API_HASH, BOT_TOKEN, ADMIN, LOG_CHANNEL
 from pyrogram import utils as pyroutils
 pyroutils.MIN_CHANNEL_ID = LOG_CHANNEL
 from config import API_ID, API_HASH, BOT_TOKEN, ADMIN, LOG_CHANNEL
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("logs/log.txt"),
+        logging.StreamHandler()
+    ]
+)
 
 # Bot configuration
 API_ID = API_ID
