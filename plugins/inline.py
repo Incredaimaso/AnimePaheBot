@@ -9,6 +9,8 @@ async def inline_search(client: Client, inline_query: InlineQuery):
     if not query:
         await inline_query.answer([], cache_time=1)
         return
+        
+    user_queries[inline_query.from_user.id] = query
 
     try:
         url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
