@@ -25,7 +25,7 @@ def anime_details(client, callback_query):
     session_id = callback_query.data.split("anime_")[1]
 
     # Retrieve the query stored earlier
-    query = user_queries.get(callback_query.message.chat.id, "")
+    query = user_queries.get(callback_query.from_user.id, "")
     search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
     response = session.get(search_url).json()
     
@@ -54,23 +54,35 @@ def anime_details(client, callback_query):
     )
 
     # Store the session_id for episodes
-    episode_data[callback_query.message.chat.id] = {
+    episode_data[callback_query.from_user.id] = {
         "session_id": session_id,
         "poster": poster_url,
-        "title": title        # Store the poster URL here
+        "title": title
     }
 
-    episode_button = InlineKeyboardMarkup([[InlineKeyboardButton("Episodes", callback_data="episodes")]])
-    client.send_photo(
-        chat_id=callback_query.message.chat.id,
-        photo=poster_url,
-        caption=message_text,
-        reply_markup=episode_button
-    )
+    episode_button = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Episodes", callback_data="episodes")]
+    ])
+
+    if callback_query.message:
+        callback_query.message.reply_photo(
+            photo=poster_url,
+            caption=message_text,
+            reply_markup=episode_button
+        )
+    else:
+        client.send_photo(
+            chat_id=callback_query.from_user.id,
+            photo=poster_url,
+            caption=message_text,
+            reply_markup=episode_button
+        )
+
+
 # Callback for episode list with pagination (send buttons once)
 @Client.on_callback_query(filters.regex(r"^episodes$"))
 def episode_list(client, callback_query, page=1):
-    session_data = episode_data.get(callback_query.message.chat.id)
+    session_data = episode_data.get(callback_query.from_user.id)
 
     if not session_data:
         callback_query.message.reply_text("Session ID not found.")
@@ -85,11 +97,11 @@ def episode_list(client, callback_query, page=1):
     episodes = response['data']
 
     # Update the current page for the user
-    episode_data[callback_query.message.chat.id]['current_page'] = page
-    episode_data[callback_query.message.chat.id]['last_page'] = last_page
+    episode_data[callback_query.from_user.id]['current_page'] = page
+    episode_data[callback_query.from_user.id]['last_page'] = last_page
 
     # Store episode data for each user
-    episode_data[callback_query.message.chat.id]['episodes'] = {ep['episode']: ep['session'] for ep in episodes}
+    episode_data[callback_query.from_user.id]['episodes'] = {ep['episode']: ep['session'] for ep in episodes}
 
     episode_buttons = [
         [InlineKeyboardButton(f"Episode {ep['episode']}", callback_data=f"ep_{ep['episode']}")]
@@ -119,7 +131,7 @@ def episode_list(client, callback_query, page=1):
 @Client.on_callback_query(filters.regex(r"^page_"))
 def navigate_pages(client, callback_query):
     new_page = int(callback_query.data.split("_")[1])
-    session_data = episode_data.get(callback_query.message.chat.id)
+    session_data = episode_data.get(callback_query.from_user.id)
 
     if not session_data:
         callback_query.message.reply_text("Session ID not found.")
@@ -142,7 +154,7 @@ def navigate_pages(client, callback_query):
 @Client.on_callback_query(filters.regex(r"^ep_"))
 def fetch_download_links(client, callback_query):
     episode_number = int(callback_query.data.split("_")[1])
-    user_id = callback_query.message.chat.id  # Unique per user
+    user_id = callback_query.from_user.id  # Unique per user
     
     session_data = episode_data.get(user_id)
 
