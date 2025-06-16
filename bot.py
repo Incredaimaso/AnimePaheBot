@@ -8,6 +8,11 @@ from config import API_ID, API_HASH, BOT_TOKEN, ADMIN, LOG_CHANNEL
 from pyrogram import utils as pyroutils
 pyroutils.MIN_CHANNEL_ID = LOG_CHANNEL
 from config import API_ID, API_HASH, BOT_TOKEN, ADMIN, LOG_CHANNEL
+
+import os
+# Ensure the logs directory exists
+os.makedirs("logs", exist_ok=True)
+
 import logging
 logging.basicConfig(
     level=logging.INFO,
