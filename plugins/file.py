@@ -12,6 +12,9 @@ from helper.database import*
 import subprocess
 import json
 from config import LOG_CHANNEL
+import time
+
+
 def create_short_name(name):
     # Check if the name length is greater than 25
     if len(name) > 30:
@@ -56,13 +59,30 @@ def get_media_details(path):
     except Exception as e:
         print(f"An error occurred: {e}")
         return None
-def download_file(url, download_path):
-    with requests.get(url, stream=True) as r:
+
+def download_file(url, download_path, progress_callback=None):
+    with requests.get(url, stream=True, timeout=30) as r:
         r.raise_for_status()
+        total = int(r.headers.get("content-length", 0))
+        downloaded = 0
+        chunk_size = 1024 * 1024  # 1MB
+        start_time = time.time()
+        last_update = start_time
+
         with open(download_path, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                f.write(chunk)
-    return download_path
+            for chunk in r.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+
+                    now = time.time()
+                    # Call callback every 5s or when finished
+                    if progress_callback and (now - last_update >= 5 or downloaded == total):
+                        speed = downloaded / (now - start_time + 1e-6)
+                        eta = (total - downloaded) / speed if speed > 0 else 0
+                        progress_callback(downloaded, total, speed, eta)
+                        last_update = now
+
 
 def sanitize_filename(file_name):
     # Remove invalid characters from the file name
