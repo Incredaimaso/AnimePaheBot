@@ -16,7 +16,7 @@ from config import DOWNLOAD_DIR
 from bs4 import BeautifulSoup
 import re
 import asyncio
-
+import time
 
 episode_data = {}
 episode_urls = {}
@@ -28,7 +28,12 @@ def anime_details(client, callback_query):
     # Retrieve the query stored earlier
     query = user_queries.get(callback_query.from_user.id, "")
     search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
-    response = session.get(search_url).json()
+    try:
+        response = session.get(search_url).json()
+    except Exception:
+        callback_query.message.reply_text("Failed to fetch anime details. Try again later.")
+        return
+
     
     anime = next(anime for anime in response['data'] if anime['session'] == session_id)
     title = anime['title']
@@ -279,7 +284,28 @@ async def download_and_upload_file(client, callback_query):
     )
 
     try:
-        await asyncio.to_thread(download_file, direct_link, download_path)
+        loop = asyncio.get_running_loop()
+        last_progress = {"text": "", "time": 0}
+
+        def report_progress(current, total, speed, eta):
+            progress_text = format_upload_progress(
+                filename=file_name,
+                uploaded=current,
+                total=total,
+                speed=speed,
+                eta=eta,
+                mode="Downloading"
+            )
+            # Only update if the text is different
+            if progress_text != last_progress["text"]:
+                last_progress["text"] = progress_text
+                asyncio.run_coroutine_threadsafe(
+                    dl_msg.edit_text(progress_text),
+                    loop
+                )
+
+        await asyncio.to_thread(download_file, direct_link, download_path, report_progress)
+
         await dl_msg.edit_text("<b>Episode downloaded, uploading...</b>")
 
         # Thumbnail logic
