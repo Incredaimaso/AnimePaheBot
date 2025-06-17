@@ -61,28 +61,25 @@ def get_media_details(path):
         return None
 
 def download_file(url, download_path, progress_callback=None):
-    with requests.get(url, stream=True, timeout=30) as r:
+    with requests.get(url, stream=True) as r:
         r.raise_for_status()
-        total = int(r.headers.get("content-length", 0))
+        total = int(r.headers.get("Content-Length", 0))
         downloaded = 0
-        chunk_size = 1024 * 1024  # 1MB
         start_time = time.time()
-        last_update = start_time
 
         with open(download_path, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=chunk_size):
+            for chunk in r.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
                     downloaded += len(chunk)
 
-                    now = time.time()
-                    # Call callback every 5s or when finished
-                    if progress_callback and (now - last_update >= 5 or downloaded == total):
-                        speed = downloaded / (now - start_time + 1e-6)
+                    if progress_callback:
+                        elapsed = time.time() - start_time + 1e-3
+                        speed = downloaded / elapsed
                         eta = (total - downloaded) / speed if speed > 0 else 0
                         progress_callback(downloaded, total, speed, eta)
-                        last_update = now
 
+    return download_path
 
 def sanitize_filename(file_name):
     # Remove invalid characters from the file name
