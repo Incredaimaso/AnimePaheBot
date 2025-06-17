@@ -15,6 +15,7 @@ from helper.utils import*
 from config import DOWNLOAD_DIR
 from bs4 import BeautifulSoup
 import re
+import asyncio
 
 
 episode_data = {}
@@ -278,7 +279,7 @@ async def download_and_upload_file(client, callback_query):
     )
 
     try:
-        download_file(direct_link, download_path)
+        await asyncio.to_thread(download_file, direct_link, download_path)
         await dl_msg.edit_text("<b>Episode downloaded, uploading...</b>")
 
         # Thumbnail logic
