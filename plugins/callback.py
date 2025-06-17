@@ -300,14 +300,19 @@ async def download_and_upload_file(client, callback_query):
             if progress_text != last_progress["text"]:
                 last_progress["text"] = progress_text
                 coro = dl_msg.edit_text(progress_text)
-                asyncio.run_coroutine_threadsafe(coro, loop)
+                future = asyncio.run_coroutine_threadsafe(coro, loop)
+                try:
+                    future.result(timeout=2)
+                except Exception as e:
+                    print(f"Progress update failed: {e}")
 
-
+        # ✅ Download file in thread
         await asyncio.to_thread(download_file, direct_link, download_path, report_progress)
 
+        # ✅ After download
         await dl_msg.edit_text("<b>Episode downloaded, uploading...</b>")
 
-        # Thumbnail logic
+        # --- Thumbnail Logic ---
         user_thumbnail = get_thumbnail(user_id)
         poster_url = episode_data.get(user_id, {}).get("poster", None)
 
@@ -322,16 +327,11 @@ async def download_and_upload_file(client, callback_query):
         else:
             thumb_path = None
 
-        if thumb_path and os.path.exists(thumb_path):
-            thumb_to_send = thumb_path
-        else:
-             thumb_to_send = None
+        thumb_to_send = thumb_path if thumb_path and os.path.exists(thumb_path) else None
 
-        # Final caption
+        # --- Upload ---
         user_caption = get_caption(user_id)
         caption_to_use = user_caption if user_caption else file_name
-
-        # Upload with progress
         chat_id = callback_query.message.chat.id
         start_time = time.time()
 
@@ -362,7 +362,6 @@ async def download_and_upload_file(client, callback_query):
         progress.last_update = 0
         progress.last_text = ""
 
-
         upload_method = get_upload_method(user_id)
 
         if upload_method == "document":
@@ -382,7 +381,6 @@ async def download_and_upload_file(client, callback_query):
                 progress=progress
             )
 
-        # Mark complete and clean up
         await dl_msg.edit_text("<b><pre>Episode Uploaded 🎉</pre></b>")
         remove_from_queue(user_id, direct_link)
 
@@ -390,8 +388,10 @@ async def download_and_upload_file(client, callback_query):
             os.remove(thumb_path)
         if os.path.exists(user_download_dir):
             remove_directory(user_download_dir)
+
     except Exception as e:
-       await callback_query.message.reply_text(f"❌ Error during download/upload:\n<code>{str(e)}</code>")
+        await callback_query.message.reply_text(f"❌ Error during download/upload:\n<code>{str(e)}</code>")
+
 
 
 # Callback query handler for Help and Close buttons
