@@ -296,13 +296,12 @@ async def download_and_upload_file(client, callback_query):
                 eta=eta,
                 mode="Downloading"
             )
-            # Only update if the text is different
+
             if progress_text != last_progress["text"]:
                 last_progress["text"] = progress_text
-                asyncio.run_coroutine_threadsafe(
-                    dl_msg.edit_text(progress_text),
-                    loop
-                )
+                coro = dl_msg.edit_text(progress_text)
+                asyncio.run_coroutine_threadsafe(coro, loop)
+
 
         await asyncio.to_thread(download_file, direct_link, download_path, report_progress)
 
