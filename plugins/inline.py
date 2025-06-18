@@ -15,9 +15,17 @@ async def inline_search(client, inline_query: InlineQuery):
         return
 
     try:
-        # Sample search using Animepahe API
         url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
         res = requests.get(url, timeout=15)
+
+        if res.status_code != 200:
+            logger.error(f"AnimePahe returned status code {res.status_code}")
+            return
+
+        if not res.content or res.text.strip() == "":
+            logger.error("Empty response received from AnimePahe")
+            return
+
         data = res.json()
 
         results = []
@@ -28,9 +36,9 @@ async def inline_search(client, inline_query: InlineQuery):
             results.append(
                 InlineQueryResultArticle(
                     title=title,
-                    description=f"Tap to view details",
+                    description="Tap to get details",
                     input_message_content=InputTextMessageContent(
-                        message_text=f"anime_{session_id}"
+                        message_text=f"/anime {title}"  # or f"anime_{session_id}"
                     ),
                     id=str(uuid4())
                 )
@@ -39,6 +47,7 @@ async def inline_search(client, inline_query: InlineQuery):
         if results:
             await inline_query.answer(results, cache_time=0, is_personal=True)
         else:
-            logger.warning("No results found")
+            logger.warning("No anime found for query.")
+
     except Exception as e:
         logger.error(f"Error in inline_search: {e}")
