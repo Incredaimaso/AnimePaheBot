@@ -3,6 +3,7 @@ import requests
 from pyrogram import Client
 from pyrogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent
 from uuid import uuid4
+from plugins.headers import session
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ async def inline_search(client, inline_query: InlineQuery):
 
     try:
         url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
-        res = requests.get(url, timeout=15)
+        res = session.get(url, timeout=15)
 
         if res.status_code != 200:
             logger.error(f"AnimePahe returned status code {res.status_code}")
