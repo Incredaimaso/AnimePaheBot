@@ -284,36 +284,9 @@ async def download_and_upload_file(client, callback_query):
     )
 
     try:
-        loop = asyncio.get_running_loop()
-        last_progress = {"text": "", "time": 0}
+        await asyncio.to_thread(download_file, direct_link, download_path)
+        await dl_msg.edit_text("<b><code><pre>Episode downloaded, uploading...</pre></code></b>")
 
-        def report_progress(current, total, speed, eta):
-            progress_text = format_upload_progress(
-                filename=file_name,
-                uploaded=current,
-                total=total,
-                speed=speed,
-                eta=eta,
-                mode="Downloading"
-            )
-
-            if progress_text != last_progress["text"]:
-                last_progress["text"] = progress_text
-                coro = dl_msg.edit_text(progress_text)
-                future = asyncio.run_coroutine_threadsafe(coro, loop)
-                try:
-                    future.result(timeout=2)
-                except Exception as e:
-                    print(f"Progress update failed: {e}")
-                    
-        if not asyncio.iscoroutinefunction(report_progress):
-           print("⚠️ Warning: report_progress is not a coroutine — this is okay, it's a callback.")
-
-        # ✅ Download file in thread
-        await asyncio.to_thread(download_file, direct_link, download_path, report_progress)
-
-        # ✅ After download
-        await dl_msg.edit_text("<b>Episode downloaded, uploading...</b>")
 
         # --- Thumbnail Logic ---
         user_thumbnail = get_thumbnail(user_id)
