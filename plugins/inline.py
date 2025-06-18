@@ -1,54 +1,39 @@
+from urllib import request
 from pyrogram import Client, filters
 from pyrogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent, InlineKeyboardMarkup, InlineKeyboardButton
 import uuid
 from plugins.headers import session  # ensure this is correct
 from plugins.commands import user_queries
+import logging
+logger = logging.getLogger(__name__)
 
 @Client.on_inline_query()
-async def inline_search(client: Client, inline_query: InlineQuery):
+async def inline_search(client, inline_query):
     query = inline_query.query.strip()
+
     if not query:
-        await inline_query.answer([], cache_time=1)
         return
-        
-    user_queries[inline_query.from_user.id] = query
+
+    logger.info(f"Inline query received: {query}")
 
     try:
+        from plugins.commands import user_queries
+        user_queries[inline_query.from_user.id] = query
+
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (compatible; Bot/1.0)"
+        })
+
         url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
-        response = session.get(search_url)
-        if response.status_code != 200 or not response.content.strip():
-            await inline_query.answer([], cache_time=1)
+        logger.debug(f"Fetching: {url}")
+        res = session.get(url)
+        data = res.json().get("data", [])
+
+        if not data:
+            logger.warning(f"No results found for query: {query}")
             return
 
-        try:
-            data = response.json()
-        except Exception as e:
-            print(f"[ERROR] Failed to parse AnimePahe response: {e}")
-            await inline_query.answer([], cache_time=1)
-            return
-
-        results = []
-
-        for anime in response.get("data", [])[:10]:
-            title = anime["title"]
-            sid = anime["session"]
-            desc = f"{anime['type']} | {anime['status']} | {anime['episodes']} eps"
-            text = f"**{title}**\n{desc}"
-
-            results.append(
-                InlineQueryResultArticle(
-                    id=str(uuid.uuid4()),
-                    title=title,
-                    description=desc,
-                    input_message_content=InputTextMessageContent(text),
-                    reply_markup=InlineKeyboardMarkup(
-                        [[InlineKeyboardButton("▶ Show Episodes", callback_data=f"anime_{sid}")]]
-                    )
-                )
-            )
-
-        await inline_query.answer(results, cache_time=5, switch_pm_text="Tap to search", switch_pm_parameter="from_inline")
-
+        # Your InlineQueryResultArticle logic...
     except Exception as e:
-        print("Inline error:", e)
-        await inline_query.answer([], cache_time=1)
+        logger.exception(f"Error in inline_search: {e}")
