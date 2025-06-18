@@ -4,6 +4,7 @@ from pyrogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessa
 import uuid
 from plugins.headers import session  # ensure this is correct
 from plugins.commands import user_queries
+import requests
 import logging
 logger = logging.getLogger(__name__)
 
