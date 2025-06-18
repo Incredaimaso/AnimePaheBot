@@ -305,6 +305,9 @@ async def download_and_upload_file(client, callback_query):
                     future.result(timeout=2)
                 except Exception as e:
                     print(f"Progress update failed: {e}")
+                    
+        if not asyncio.iscoroutinefunction(report_progress):
+           print("⚠️ Warning: report_progress is not a coroutine — this is okay, it's a callback.")
 
         # ✅ Download file in thread
         await asyncio.to_thread(download_file, direct_link, download_path, report_progress)
