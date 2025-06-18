@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 import re
 import asyncio
 import time
+from plugins.inline import user_queries
 
 episode_data = {}
 episode_urls = {}
