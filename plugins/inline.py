@@ -1,49 +1,52 @@
-from pyrogram import Client
-from pyrogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent
+# plugins/inline.py
+from pyrogram import Client, filters
+from pyrogram.types import InlineQueryResultArticle, InputTextMessageContent, InlineKeyboardMarkup, InlineKeyboardButton
 from plugins.headers import session
-from plugins.commands import user_queries
 from uuid import uuid4
 import logging
 
-logger = logging.getLogger(__name__)
+# Store queries by user_id
+user_queries = {}
 
 @Client.on_inline_query()
-async def inline_search(client, inline_query: InlineQuery):
+async def inline_search(client, inline_query):
     query = inline_query.query.strip()
-    logger.info(f"Inline query received: {query}")
-
+    logging.info(f"Inline query received: {query}")
+    
     if not query:
-        return
+        return await inline_query.answer([], cache_time=1)
+
+    user_id = inline_query.from_user.id
+    user_queries[user_id] = query  # store search term
 
     try:
         url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
-        response = session.get(url, timeout=10)
-
-        if response.status_code != 200 or not response.content.strip():
-            logger.error(f"AnimePahe API error: {response.status_code} or empty body")
-            return
-
-        data = response.json()
-
-        user_queries[inline_query.from_user.id] = query  # Store for callback use
-
+        res = session.get(url).json()
         results = []
-        for anime in data.get("data", [])[:10]:
-            title = anime["title"]
-            session_id = anime["session"]
 
+        for anime in res.get("data", []):
+            session_id = anime["session"]
+            title = anime["title"]
+            episodes = anime.get("episodes", "N/A")
+            type_ = anime.get("type", "Unknown")
+
+            # Each result has a message + inline button
             results.append(
                 InlineQueryResultArticle(
                     title=title,
-                    description="Tap to get details",
+                    description=f"{type_} • Episodes: {episodes}",
                     input_message_content=InputTextMessageContent(
-                        message_text=f"anime_{session_id}"
+                        f"📺 {title}\n\nClick the button below to view episodes."
                     ),
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("Show Episodes", callback_data=f"anime_{session_id}")
+                    ]]),
                     id=str(uuid4())
                 )
             )
 
-        await inline_query.answer(results, cache_time=0, is_personal=True)
+        await inline_query.answer(results, cache_time=3)
 
     except Exception as e:
-        logger.error(f"Error in inline_search: {e}")
+        logging.error(f"Error in inline_search: {e}")
+        await inline_query.answer([], switch_pm_text="❌ Failed to fetch results", cache_time=3)
