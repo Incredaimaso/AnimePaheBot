@@ -60,26 +60,15 @@ def get_media_details(path):
         print(f"An error occurred: {e}")
         return None
 
-def download_file(url, download_path, progress_callback=None):
+def download_file(url, download_path):
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
-        total = int(r.headers.get("Content-Length", 0))
-        downloaded = 0
-        start_time = time.time()
-
         with open(download_path, 'wb') as f:
             for chunk in r.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
-                    downloaded += len(chunk)
-
-                    if progress_callback:
-                        elapsed = time.time() - start_time + 1e-3
-                        speed = downloaded / elapsed
-                        eta = (total - downloaded) / speed if speed > 0 else 0
-                        progress_callback(downloaded, total, speed, eta)
-
     return download_path
+
 
 def sanitize_filename(file_name):
     # Remove invalid characters from the file name
