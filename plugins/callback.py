@@ -26,20 +26,24 @@ episode_data = {}
 episode_urls = {}
 
 @Client.on_callback_query(filters.regex(r"^anime_"))
-def anime_details(client, callback_query):
+async def anime_details(client, callback_query):
     session_id = callback_query.data.split("anime_")[1]
 
     # Retrieve the query stored earlier
     query = user_queries.get(callback_query.from_user.id, "")
     search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
     try:
-       res = session.get(search_url)
+       res = session.get(search_url, timeout=10)
+       res.raise_for_status()
        logging.info(f"[Anime Details] Search URL: {search_url}")
        logging.info(f"[Anime Details] Response Text (first 200 chars): {res.text[:200]}")
        response = res.json()
-    except Exception as e:
-        logging.error(f"[Anime Details] Failed to parse JSON: {e}")
-        callback_query.message.reply_text("Failed to fetch anime details. Try again later.")
+    except (requests.RequestException, ValueError) as e:
+        logging.error(f"[Anime Details] Error fetching/parsing data: {e}")
+        try:
+            await callback_query.message.reply_text("Failed to fetch anime details. Try again later.")
+        except:
+            await callback_query.answer("❌ Failed to fetch anime details.", show_alert=True)
         return
 
 # Safely extract anime details
@@ -86,13 +90,13 @@ def anime_details(client, callback_query):
     ])
 
     if callback_query.message:
-        callback_query.message.reply_photo(
+        await callback_query.message.reply_photo(
             photo=poster_url,
             caption=message_text,
             reply_markup=episode_button
         )
     else:
-        client.send_photo(
+        await client.send_photo(
             chat_id=callback_query.from_user.id,
             photo=poster_url,
             caption=message_text,
