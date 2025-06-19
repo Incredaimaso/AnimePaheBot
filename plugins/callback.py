@@ -31,6 +31,12 @@ async def anime_details(client, callback_query):
 
     # Retrieve the query stored earlier
     query = user_queries.get(callback_query.from_user.id, "")
+
+    if not query:
+        logging.warning(f"[Anime Details] No Stored Query for user {callback_query.from_user.id}")
+        await callback_query.answer("❌ No search query found. Try using inline mode again.", show_alert=True)
+        return
+
     search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
     try:
        res = session.get(search_url, timeout=10)
