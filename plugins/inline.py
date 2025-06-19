@@ -17,6 +17,13 @@ from plugins.file import create_short_name, sanitize_filename
 from config import DOWNLOAD_DIR
 import os
 import time
+import asyncio
+import requests
+from plugins.file import get_caption, get_upload_method, get_thumbnail, random_string, remove_directory
+from plugins.file import download_file
+from pyrogram.enums import ParseMode
+from helper.utils import format_upload_progress
+
 user_queries = {}
 
 @Client.on_inline_query()
@@ -130,3 +137,107 @@ async def inline_show_quality(client, callback_query):
         await callback_query.message.edit_text("❌ Failed to load quality options.")
         logging.error(f"inline_show_quality error: {e}")
 
+@Client.on_callback_query(filters.regex(r"^inline_dl_"))
+async def inline_download_and_upload(client, callback_query):
+    try:
+        _, session_id, ep_session, ep_number, href = callback_query.data.split("_", 4)
+
+        msg = await callback_query.message.edit_text("🔗 Generating direct download link...")
+        user_id = callback_query.from_user.id
+
+        # Extract direct link
+        kwik = extract_kwik_link(href)
+        direct_link = get_dl_link(kwik)
+
+        # Filename setup
+        title = episode_data.get(user_id, {}).get("title", "Anime")
+        short = create_short_name(title)
+        resolution = re.search(r"\d{3,4}p", href)
+        resolution = resolution.group() if resolution else "Unknown"
+        type_ = "Dub" if "eng" in href.lower() else "Sub"
+
+        file_name = sanitize_filename(f"EP{ep_number} - {short} [{resolution}] [{type_}].mp4")
+        rand = random_string(5)
+        download_dir = os.path.join(DOWNLOAD_DIR, str(user_id), rand)
+        os.makedirs(download_dir, exist_ok=True)
+        path = os.path.join(download_dir, file_name)
+
+        # Progress setup
+        start = time.time()
+        last_text = ""
+        last_update = 0
+
+        def progress_callback(current, total, speed, eta):
+            nonlocal last_text, last_update
+            now = time.time()
+            if now - last_update >= 5 or current == total:
+                text = format_upload_progress(
+                    filename=file_name,
+                    uploaded=current,
+                    total=total,
+                    speed=speed,
+                    eta=eta,
+                    mode="Downloading"
+                )
+                if text != last_text:
+                    asyncio.run_coroutine_threadsafe(
+                        callback_query.message.edit_text(text, parse_mode=ParseMode.HTML), asyncio.get_event_loop()
+                    )
+                    last_text = text
+                    last_update = now
+
+        # Start download in thread
+        await asyncio.to_thread(download_file, direct_link, path, progress_callback)
+
+        await callback_query.message.edit_text("✅ Download complete. Uploading...")
+
+        # Upload logic
+        thumb = None
+        thumb_id = get_thumbnail(user_id)
+        if thumb_id:
+            thumb = await client.download_media(thumb_id)
+
+        caption = get_caption(user_id) or file_name
+        upload_method = get_upload_method(user_id)
+        chat_id = callback_query.message.chat.id
+
+        start_time = time.time()
+
+        async def upload_progress(current, total):
+            now = time.time()
+            if now - upload_progress.last_update >= 5 or current == total:
+                speed = current / (now - start_time + 1e-3)
+                eta = (total - current) / speed if speed else 0
+                text = format_upload_progress(
+                    filename=file_name,
+                    uploaded=current,
+                    total=total,
+                    speed=speed,
+                    eta=eta,
+                    mode=upload_method.capitalize()
+                )
+                if text != upload_progress.last_text:
+                    try:
+                        await callback_query.message.edit_text(text, parse_mode=ParseMode.HTML)
+                        upload_progress.last_text = text
+                    except:
+                        pass
+                upload_progress.last_update = now
+
+        upload_progress.last_update = 0
+        upload_progress.last_text = ""
+
+        if upload_method == "document":
+            await client.send_document(chat_id, document=path, caption=caption, thumb=thumb, progress=upload_progress)
+        else:
+            await client.send_video(chat_id, video=path, caption=caption, thumb=thumb, progress=upload_progress)
+
+        await callback_query.message.edit_text("✅ <b>Upload Complete!</b>", parse_mode=ParseMode.HTML)
+
+        if thumb and os.path.exists(thumb):
+            os.remove(thumb)
+        remove_directory(download_dir)
+
+    except Exception as e:
+        logging.error(f"inline_download_and_upload error: {e}")
+        await callback_query.message.edit_text(f"❌ Error:\n<code>{str(e)}</code>", parse_mode="html")
