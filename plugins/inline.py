@@ -9,7 +9,14 @@ from pyrogram.types import (
 from plugins.headers import session
 from uuid import uuid4
 import logging
-
+from bs4 import BeautifulSoup
+import re
+from plugins.kwik import extract_kwik_link
+from plugins.direct_link import get_dl_link
+from plugins.file import create_short_name, sanitize_filename
+from config import DOWNLOAD_DIR
+import os
+import time
 user_queries = {}
 
 @Client.on_inline_query()
@@ -86,3 +93,40 @@ async def inline_show_episodes(client, callback_query):
     except Exception as e:
         await callback_query.message.edit_text("❌ Failed to fetch episodes.")
         logging.error(f"Inline episode fetch error: {e}")
+
+@Client.on_callback_query(filters.regex(r"^inline_ep_"))
+async def inline_show_quality(client, callback_query):
+    try:
+        data = callback_query.data.split("_", 3)
+        session_id = data[2]
+        ep_session = data[3]
+        episode_number = data[4] if len(data) > 4 else "?"
+
+        # Build URL and fetch download options
+        play_url = f"https://animepahe.ru/play/{session_id}/{ep_session}"
+        soup = BeautifulSoup(session.get(play_url).content, "html.parser")
+        links = soup.select("#pickDownload a.dropdown-item")
+
+        if not links:
+            await callback_query.message.edit_text("❌ No download links found.")
+            return
+
+        # Make download buttons (quality + sub/dub)
+        buttons = []
+        for link in links:
+            text = link.get_text(strip=True)
+            href = link['href']
+            label = re.sub(r"\s+", " ", text)  # clean whitespace
+            buttons.append([
+                InlineKeyboardButton(label, callback_data=f"inline_dl_{session_id}_{ep_session}_{episode_number}_{href}")
+            ])
+
+        await callback_query.message.edit_text(
+            f"🎬 <b>Select a quality for Episode {episode_number}:</b>",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode="html"
+        )
+    except Exception as e:
+        await callback_query.message.edit_text("❌ Failed to load quality options.")
+        logging.error(f"inline_show_quality error: {e}")
+
