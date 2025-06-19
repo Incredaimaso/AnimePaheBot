@@ -17,7 +17,10 @@ from bs4 import BeautifulSoup
 import re
 import asyncio
 import time
-from plugins.inline import user_queries
+import logging
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 episode_data = {}
 episode_urls = {}
@@ -30,11 +33,22 @@ def anime_details(client, callback_query):
     query = user_queries.get(callback_query.from_user.id, "")
     search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
     try:
-        response = session.get(search_url).json()
-    except Exception:
+       res = session.get(search_url)
+       logging.info(f"[Anime Details] Search URL: {search_url}")
+       logging.info(f"[Anime Details] Response Text (first 200 chars): {res.text[:200]}")
+       response = res.json()
+    except Exception as e:
+        logging.error(f"[Anime Details] Failed to parse JSON: {e}")
         callback_query.message.reply_text("Failed to fetch anime details. Try again later.")
         return
 
+# Safely extract anime details
+    try:
+        anime = next(anime for anime in response['data'] if anime['session'] == session_id)
+    except (KeyError, StopIteration):
+        callback_query.message.reply_text("No matching anime found.")
+        logging.warning(f"[Anime Details] No anime matched session_id: {session_id}")
+        return
     
     anime = next(anime for anime in response['data'] if anime['session'] == session_id)
     title = anime['title']
