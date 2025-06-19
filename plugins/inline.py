@@ -1,5 +1,11 @@
 from pyrogram import Client, filters
-from pyrogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import (
+    InlineQuery, 
+    InlineQueryResultArticle, 
+    InputTextMessageContent, 
+    InlineKeyboardMarkup, 
+    InlineKeyboardButton
+)
 from plugins.headers import session
 from uuid import uuid4
 import logging
@@ -11,7 +17,7 @@ async def inline_search(client, inline_query: InlineQuery):
     query = inline_query.query.strip()
 
     if not query:
-        await inline_query.answer([], switch_pm_text="Type an anime name", cache_time=0)
+        await inline_query.answer([], cache_time=0)
         return
 
     user_queries[inline_query.from_user.id] = query
@@ -28,14 +34,19 @@ async def inline_search(client, inline_query: InlineQuery):
             year = anime["year"]
             type_ = anime["type"]
 
+            message_text = (
+                f"📺 {title}\n\n"
+                f"Click the button below to view episodes."
+            )
+
             results.append(
                 InlineQueryResultArticle(
+                    id=str(uuid4()),
                     title=title,
                     description=f"{type_} - {year}",
                     thumb_url=poster,
                     input_message_content=InputTextMessageContent(
-                        f"📺 <b>{title}</b>\n\nClick the button below to view episodes.",
-                        parse_mode="html"
+                        message_text  # NO parse_mode here
                     ),
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("📂 Show Episodes", callback_data=f"anime_inline_{session_id}")]
@@ -47,4 +58,4 @@ async def inline_search(client, inline_query: InlineQuery):
 
     except Exception as e:
         logging.error(f"Error in inline_search: {e}")
-        await inline_query.answer([], switch_pm_text="Failed to fetch results", cache_time=0)
+        await inline_query.answer([], cache_time=0)
