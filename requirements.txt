@@ -1,5 +1,5 @@
 #...For Bot Library...#
-kurigram
+https://github.com/KurimuzonAkuma/pyrogram/archive/v2.1.23.zip 
 #...For Web Scraping...#
 bs4==0.0.2
 #...For Handling Requests...#
@@ -7,7 +7,7 @@ requests==2.31.0
 #...For Database...#
 pymongo
 #...For Enhancing Bot Performance...#
-tgcrypto
+tgcrypto-pyrofork 
 #...For Grabbing Episode Information...#
 ffprobe
 #...For Web App (Remove Bellow 2 Requirements If You Deploy It As Worker)...#
