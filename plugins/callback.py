@@ -3,18 +3,38 @@
 # Anyone Can Modify As They Like
 # Just don't remove the credit ❤️
 
+import logging
 from pyrogram import Client, filters
-from pyrogram.types import (
-    CallbackQuery,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton
-)
+from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
 from plugins.headers import session
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ---------------- Safe Edit Helper ---------------- #
+async def safe_edit(callback_query: CallbackQuery, text: str, reply_markup=None, preview=True):
+    """
+    Safely edit either a normal chat message or an inline message.
+    """
+    try:
+        if callback_query.message:
+            await callback_query.message.edit_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=not preview
+            )
+        else:
+            await callback_query.edit_message_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=not preview
+            )
+    except Exception as e:
+        logger.error(f"safe_edit error: {e}")
+        await callback_query.answer("⚠️ Could not update message.", show_alert=True)
 
 
 # --- Handle anime selection (from inline query) ---
@@ -33,28 +53,26 @@ async def anime_callback(client: Client, callback_query: CallbackQuery):
             return
 
         buttons = []
-        for ep in episodes[:10]:  # first 10 episodes only
+        for ep in episodes[:10]:  # show first 10 episodes
             ep_num = ep.get("episode")
             ep_id = ep.get("session")
-            buttons.append([
-                InlineKeyboardButton(f"Episode {ep_num}", callback_data=f"episode_{ep_id}")
-            ])
+            buttons.append([InlineKeyboardButton(f"Episode {ep_num}", callback_data=f"episode_{ep_id}")])
 
+        # Pagination buttons
         nav_buttons = [
             InlineKeyboardButton("⏪ Prev", callback_data=f"page_prev_{session_id}_1"),
             InlineKeyboardButton("Next ⏩", callback_data=f"page_next_{session_id}_2")
         ]
-
         buttons.append(nav_buttons)
 
-        await callback_query.message.edit_text(
+        await safe_edit(
+            callback_query,
             "<b>📺 Episodes List</b>\n\nSelect an episode below:",
-            reply_markup=InlineKeyboardMarkup(buttons),
-            parse_mode=ParseMode.HTML
+            reply_markup=InlineKeyboardMarkup(buttons)
         )
 
     except Exception as e:
-        logger.error(f"anime_callback error: {e}")
+        logger.error(f"anime_callback error: {e}", exc_info=True)
         await callback_query.answer("⚠️ Something went wrong.", show_alert=True)
 
 
@@ -72,19 +90,17 @@ async def episode_callback(client: Client, callback_query: CallbackQuery):
             await callback_query.answer("❌ Stream link not found.", show_alert=True)
             return
 
-        buttons = InlineKeyboardMarkup([[
-            InlineKeyboardButton("▶️ Watch Now", url=embed_url)
-        ]])
+        buttons = InlineKeyboardMarkup([[InlineKeyboardButton("▶️ Watch Now", url=embed_url)]])
 
-        await callback_query.message.edit_text(
+        await safe_edit(
+            callback_query,
             f"<b>Episode Stream</b>\n\n<a href='{embed_url}'>Click here to watch</a>",
             reply_markup=buttons,
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True
+            preview=False
         )
 
     except Exception as e:
-        logger.error(f"episode_callback error: {e}")
+        logger.error(f"episode_callback error: {e}", exc_info=True)
         await callback_query.answer("⚠️ Something went wrong.", show_alert=True)
 
 
@@ -107,9 +123,7 @@ async def pagination_callback(client: Client, callback_query: CallbackQuery):
         for ep in episodes[:10]:
             ep_num = ep.get("episode")
             ep_id = ep.get("session")
-            buttons.append([
-                InlineKeyboardButton(f"Episode {ep_num}", callback_data=f"episode_{ep_id}")
-            ])
+            buttons.append([InlineKeyboardButton(f"Episode {ep_num}", callback_data=f"episode_{ep_id}")])
 
         nav = []
         if page > 1:
@@ -119,12 +133,12 @@ async def pagination_callback(client: Client, callback_query: CallbackQuery):
         if nav:
             buttons.append(nav)
 
-        await callback_query.message.edit_text(
+        await safe_edit(
+            callback_query,
             "<b>📺 Episodes List</b>\n\nSelect an episode below:",
-            reply_markup=InlineKeyboardMarkup(buttons),
-            parse_mode=ParseMode.HTML
+            reply_markup=InlineKeyboardMarkup(buttons)
         )
 
     except Exception as e:
-        logger.error(f"pagination_callback error: {e}")
+        logger.error(f"pagination_callback error: {e}", exc_info=True)
         await callback_query.answer("⚠️ Something went wrong.", show_alert=True)
