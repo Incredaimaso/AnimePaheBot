@@ -3,7 +3,7 @@
 # Anyone Can Modify As They Like
 # Just don't remove the credit ❤️
 
-from pyrogram import Client, filters
+from pyrogram import Client
 from pyrogram.types import (
     InlineQuery,
     InlineQueryResultArticle,
@@ -11,6 +11,7 @@ from pyrogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton
 )
+from pyrogram.enums import ParseMode
 from plugins.headers import session
 import logging
 
@@ -63,7 +64,7 @@ async def inline_search(client: Client, inline_query: InlineQuery):
                 thumb_url=poster,
                 input_message_content=InputTextMessageContent(
                     f"<b>{title}</b>\n\nTap below to view episodes ⬇️",
-                    parse_mode="html"
+                    parse_mode=ParseMode.HTML
                 ),
                 reply_markup=buttons
             )
