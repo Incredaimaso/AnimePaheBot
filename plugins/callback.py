@@ -4,6 +4,7 @@
 # Just don't remove the credit ❤️
 
 import logging
+from uuid import uuid4
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
@@ -12,38 +13,34 @@ from plugins.headers import session
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ---------------- Safe Edit Helper ---------------- #
-async def safe_edit(callback_query: CallbackQuery, text: str, reply_markup=None, preview=True):
-    """
-    Safely edit either a normal chat message or an inline message.
-    """
+# In-memory callback storage
+CALLBACK_CACHE = {}  # {short_key: (prefix, real_value)}
+
+def store_callback_data(prefix: str, real_value: str) -> str:
+    """Store real data and return a safe short callback key."""
+    key = str(uuid4())[:8]
+    CALLBACK_CACHE[key] = (prefix, real_value)
+    return f"{prefix}_{key}"
+
+def resolve_callback_data(data: str):
+    """Resolve short callback key back to real data."""
     try:
-        if callback_query.message:
-            await callback_query.message.edit_text(
-                text,
-                reply_markup=reply_markup,
-                parse_mode=ParseMode.HTML,
-                disable_web_page_preview=not preview
-            )
-        else:
-            await callback_query.edit_message_text(
-                text,
-                reply_markup=reply_markup,
-                parse_mode=ParseMode.HTML,
-                disable_web_page_preview=not preview
-            )
-    except Exception as e:
-        logger.error(f"safe_edit error: {e}")
-        await callback_query.answer("⚠️ Could not update message.", show_alert=True)
+        prefix, key = data.split("_", 1)
+        return CALLBACK_CACHE.get(key, (prefix, None))
+    except Exception:
+        return None, None
 
 
 # --- Handle anime selection (from inline query) ---
 @Client.on_callback_query(filters.regex(r"^anime_"))
 async def anime_callback(client: Client, callback_query: CallbackQuery):
     try:
-        session_id = callback_query.data.split("_", 1)[1]
+        _, session_id = resolve_callback_data(callback_query.data)
 
-        # Fetch anime details from API
+        if not session_id:
+            await callback_query.answer("⚠️ Session expired. Try again.", show_alert=True)
+            return
+
         url = f"https://animepahe.ru/api?m=release&id={session_id}&sort=episode_asc&page=1"
         res = session.get(url).json()
 
@@ -53,26 +50,26 @@ async def anime_callback(client: Client, callback_query: CallbackQuery):
             return
 
         buttons = []
-        for ep in episodes[:10]:  # show first 10 episodes
+        for ep in episodes[:10]:
             ep_num = ep.get("episode")
             ep_id = ep.get("session")
-            buttons.append([InlineKeyboardButton(f"Episode {ep_num}", callback_data=f"episode_{ep_id}")])
+            safe_cb = store_callback_data("episode", ep_id)
+            buttons.append([InlineKeyboardButton(f"Episode {ep_num}", callback_data=safe_cb)])
 
-        # Pagination buttons
         nav_buttons = [
-            InlineKeyboardButton("⏪ Prev", callback_data=f"page_prev_{session_id}_1"),
-            InlineKeyboardButton("Next ⏩", callback_data=f"page_next_{session_id}_2")
+            InlineKeyboardButton("⏪ Prev", callback_data=store_callback_data("page", f"{session_id}_1")),
+            InlineKeyboardButton("Next ⏩", callback_data=store_callback_data("page", f"{session_id}_2"))
         ]
         buttons.append(nav_buttons)
 
-        await safe_edit(
-            callback_query,
+        await callback_query.message.edit_text(
             "<b>📺 Episodes List</b>\n\nSelect an episode below:",
-            reply_markup=InlineKeyboardMarkup(buttons)
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.HTML
         )
 
     except Exception as e:
-        logger.error(f"anime_callback error: {e}", exc_info=True)
+        logger.error(f"anime_callback error: {e}")
         await callback_query.answer("⚠️ Something went wrong.", show_alert=True)
 
 
@@ -80,7 +77,11 @@ async def anime_callback(client: Client, callback_query: CallbackQuery):
 @Client.on_callback_query(filters.regex(r"^episode_"))
 async def episode_callback(client: Client, callback_query: CallbackQuery):
     try:
-        ep_id = callback_query.data.split("_", 1)[1]
+        _, ep_id = resolve_callback_data(callback_query.data)
+
+        if not ep_id:
+            await callback_query.answer("⚠️ Session expired. Try again.", show_alert=True)
+            return
 
         url = f"https://animepahe.ru/api?m=embed&id={ep_id}"
         res = session.get(url).json()
@@ -90,17 +91,19 @@ async def episode_callback(client: Client, callback_query: CallbackQuery):
             await callback_query.answer("❌ Stream link not found.", show_alert=True)
             return
 
-        buttons = InlineKeyboardMarkup([[InlineKeyboardButton("▶️ Watch Now", url=embed_url)]])
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("▶️ Watch Now", url=embed_url)]
+        ])
 
-        await safe_edit(
-            callback_query,
+        await callback_query.message.edit_text(
             f"<b>Episode Stream</b>\n\n<a href='{embed_url}'>Click here to watch</a>",
             reply_markup=buttons,
-            preview=False
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True
         )
 
     except Exception as e:
-        logger.error(f"episode_callback error: {e}", exc_info=True)
+        logger.error(f"episode_callback error: {e}")
         await callback_query.answer("⚠️ Something went wrong.", show_alert=True)
 
 
@@ -108,8 +111,14 @@ async def episode_callback(client: Client, callback_query: CallbackQuery):
 @Client.on_callback_query(filters.regex(r"^page_"))
 async def pagination_callback(client: Client, callback_query: CallbackQuery):
     try:
-        parts = callback_query.data.split("_")
-        action, session_id, page = parts[1], parts[2], int(parts[3])
+        _, payload = resolve_callback_data(callback_query.data)
+
+        if not payload:
+            await callback_query.answer("⚠️ Session expired. Try again.", show_alert=True)
+            return
+
+        session_id, page = payload.split("_")
+        page = int(page)
 
         url = f"https://animepahe.ru/api?m=release&id={session_id}&sort=episode_asc&page={page}"
         res = session.get(url).json()
@@ -123,22 +132,23 @@ async def pagination_callback(client: Client, callback_query: CallbackQuery):
         for ep in episodes[:10]:
             ep_num = ep.get("episode")
             ep_id = ep.get("session")
-            buttons.append([InlineKeyboardButton(f"Episode {ep_num}", callback_data=f"episode_{ep_id}")])
+            safe_cb = store_callback_data("episode", ep_id)
+            buttons.append([InlineKeyboardButton(f"Episode {ep_num}", callback_data=safe_cb)])
 
         nav = []
         if page > 1:
-            nav.append(InlineKeyboardButton("⏪ Prev", callback_data=f"page_prev_{session_id}_{page-1}"))
-        nav.append(InlineKeyboardButton("Next ⏩", callback_data=f"page_next_{session_id}_{page+1}"))
+            nav.append(InlineKeyboardButton("⏪ Prev", callback_data=store_callback_data("page", f"{session_id}_{page-1}")))
+        nav.append(InlineKeyboardButton("Next ⏩", callback_data=store_callback_data("page", f"{session_id}_{page+1}")))
 
         if nav:
             buttons.append(nav)
 
-        await safe_edit(
-            callback_query,
+        await callback_query.message.edit_text(
             "<b>📺 Episodes List</b>\n\nSelect an episode below:",
-            reply_markup=InlineKeyboardMarkup(buttons)
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.HTML
         )
 
     except Exception as e:
-        logger.error(f"pagination_callback error: {e}", exc_info=True)
+        logger.error(f"pagination_callback error: {e}")
         await callback_query.answer("⚠️ Something went wrong.", show_alert=True)
