@@ -1,215 +1,130 @@
-# ---------- Callback Handlers ----------
+# ---------- Callback Handler ----------
 # This Bot Made By [RAHAT](https://t.me/r4h4t_69)
 # Anyone Can Modify As They Like
 # Just don't remove the credit ❤️
 
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from plugins.queue import add_to_queue, remove_from_queue
-from plugins.kwik import extract_kwik_link
-from plugins.direct_link import get_dl_link
-from plugins.headers import session
-from plugins.file import (
-    create_short_name, sanitize_filename, download_file,
-    get_caption, get_thumbnail, get_upload_method, random_string
+from pyrogram.types import (
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton
 )
-from helper.database import save_upload_method, get_filename_format
-from helper.utils import format_upload_progress
-from config import DOWNLOAD_DIR
-from bs4 import BeautifulSoup
-import re
-import asyncio
-import time
+from pyrogram.enums import ParseMode
+from plugins.headers import session
 import logging
-import os
-import requests
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# --- Anime details (list episodes) ---
+# --- Handle anime selection (from inline query) ---
 @Client.on_callback_query(filters.regex(r"^anime_"))
-async def anime_details(client, callback_query):
-    session_id = callback_query.data.split("anime_")[1]
-
-    ep_url = f"https://animepahe.ru/api?m=release&id={session_id}&sort=episode_asc&page=1"
+async def anime_callback(client: Client, callback_query: CallbackQuery):
     try:
-        res = session.get(ep_url).json()
-    except Exception as e:
-        await callback_query.message.edit_text("❌ Failed to fetch episodes.")
-        logger.error(f"anime_details error: {e}")
-        return
+        session_id = callback_query.data.split("_", 1)[1]
 
-    episodes = res.get("data", [])
-    if not episodes:
-        await callback_query.message.edit_text("❌ No episodes found.")
-        return
+        # Fetch anime details from API
+        url = f"https://animepahe.ru/api?m=release&id={session_id}&sort=episode_asc&page=1"
+        res = session.get(url).json()
 
-    buttons = [
-        [InlineKeyboardButton(
-            f"Episode {ep['episode']}",
-            callback_data=f"ep_{session_id}_{ep['session']}_{ep['episode']}"
-        )]
-        for ep in episodes
-    ]
+        episodes = res.get("data", [])
+        if not episodes:
+            await callback_query.answer("❌ No episodes found.", show_alert=True)
+            return
 
-    await callback_query.message.edit_text(
-        "📺 <b>Select an episode:</b>",
-        reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode="html"
-    )
+        buttons = []
+        for ep in episodes[:10]:  # first 10 episodes only
+            ep_num = ep.get("episode")
+            ep_id = ep.get("session")
+            buttons.append([
+                InlineKeyboardButton(f"Episode {ep_num}", callback_data=f"episode_{ep_id}")
+            ])
 
+        nav_buttons = [
+            InlineKeyboardButton("⏪ Prev", callback_data=f"page_prev_{session_id}_1"),
+            InlineKeyboardButton("Next ⏩", callback_data=f"page_next_{session_id}_2")
+        ]
 
-# --- Episode handler (show qualities) ---
-@Client.on_callback_query(filters.regex(r"^ep_"))
-async def fetch_download_links(client, callback_query):
-    _, session_id, ep_session, ep_number = callback_query.data.split("_", 3)
+        buttons.append(nav_buttons)
 
-    url = f"https://animepahe.ru/play/{session_id}/{ep_session}"
-    try:
-        soup = BeautifulSoup(session.get(url).content, "html.parser")
-    except Exception as e:
-        await callback_query.message.edit_text("❌ Failed to fetch download links.")
-        logger.error(f"fetch_download_links error: {e}")
-        return
-
-    links = soup.select("#pickDownload a.dropdown-item")
-    if not links:
-        await callback_query.message.edit_text("❌ No download links found.")
-        return
-
-    buttons = [
-        [InlineKeyboardButton(
-            link.get_text(strip=True),
-            callback_data=f"dl_{session_id}_{ep_session}_{ep_number}_{link['href']}"
-        )]
-        for link in links
-    ]
-
-    await callback_query.message.edit_text(
-        f"🎬 <b>Select quality for Episode {ep_number}:</b>",
-        reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode="html"
-    )
-
-
-# --- Download + upload handler ---
-@Client.on_callback_query(filters.regex(r"^dl_"))
-async def download_and_upload(client, callback_query):
-    try:
-        _, session_id, ep_session, ep_number, href = callback_query.data.split("_", 4)
-    except ValueError:
-        await callback_query.message.edit_text("❌ Invalid callback data.")
-        return
-
-    msg = await callback_query.message.edit_text("🔗 Generating direct download link...")
-    user_id = callback_query.from_user.id
-
-    try:
-        kwik = extract_kwik_link(href)
-        direct_link = get_dl_link(kwik)
-    except Exception as e:
-        await msg.edit_text(f"❌ Failed to generate direct link.\n<code>{str(e)}</code>", parse_mode="html")
-        return
-
-    # --- File naming ---
-    resolution = re.search(r"\d{3,4}p", href)
-    resolution = resolution.group() if resolution else "Unknown"
-    type_ = "Dub" if "eng" in href.lower() else "Sub"
-
-    short = create_short_name("Anime")  # fallback name
-    format_template = get_filename_format(user_id) or "{title}_EP{episode_number}_{resolution}_{type}"
-    try:
-        file_name = format_template.format(
-            episode_number=ep_number,
-            title=short,
-            resolution=resolution,
-            type=type_
+        await callback_query.message.edit_text(
+            "<b>📺 Episodes List</b>\n\nSelect an episode below:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.HTML
         )
-    except KeyError:
-        file_name = f"EP{ep_number}_{short}_{resolution}_{type_}"
-    file_name = sanitize_filename(file_name + ".mp4")
 
-    rand = random_string(5)
-    download_dir = os.path.join(DOWNLOAD_DIR, str(user_id), rand)
-    os.makedirs(download_dir, exist_ok=True)
-    path = os.path.join(download_dir, file_name)
-
-    # --- Download with progress ---
-    start = time.time()
-    async def progress_callback(current, total):
-        now = time.time()
-        if now - progress_callback.last_update >= 5 or current == total:
-            speed = current / (now - start + 1e-3)
-            eta = (total - current) / speed if speed else 0
-            text = format_upload_progress(
-                filename=file_name,
-                uploaded=current,
-                total=total,
-                speed=speed,
-                eta=eta,
-                mode="Downloading"
-            )
-            try:
-                await msg.edit_text(text, parse_mode="html")
-            except:
-                pass
-            progress_callback.last_update = now
-    progress_callback.last_update = 0
-
-    try:
-        await asyncio.to_thread(download_file, direct_link, path, lambda c, t, *_: asyncio.run(progress_callback(c, t)))
     except Exception as e:
-        await msg.edit_text(f"❌ Download failed:\n<code>{str(e)}</code>", parse_mode="html")
-        return
+        logger.error(f"anime_callback error: {e}")
+        await callback_query.answer("⚠️ Something went wrong.", show_alert=True)
 
-    await msg.edit_text("✅ Download complete. Uploading...")
 
-    # --- Thumbnail ---
-    thumb = None
-    thumb_id = get_thumbnail(user_id)
-    if thumb_id:
-        thumb = await client.download_media(thumb_id)
-
-    # --- Upload ---
-    caption = get_caption(user_id) or file_name
-    upload_method = get_upload_method(user_id)
-    chat_id = callback_query.message.chat.id
-
-    start_time = time.time()
-    async def upload_progress(current, total):
-        now = time.time()
-        if now - upload_progress.last_update >= 5 or current == total:
-            speed = current / (now - start_time + 1e-3)
-            eta = (total - current) / speed if speed else 0
-            text = format_upload_progress(
-                filename=file_name,
-                uploaded=current,
-                total=total,
-                speed=speed,
-                eta=eta,
-                mode=upload_method.capitalize()
-            )
-            try:
-                await msg.edit_text(text, parse_mode="html")
-            except:
-                pass
-            upload_progress.last_update = now
-    upload_progress.last_update = 0
-
+# --- Handle episode selection ---
+@Client.on_callback_query(filters.regex(r"^episode_"))
+async def episode_callback(client: Client, callback_query: CallbackQuery):
     try:
-        if upload_method == "document":
-            await client.send_document(chat_id, document=path, caption=caption, thumb=thumb, progress=upload_progress)
-        else:
-            await client.send_video(chat_id, video=path, caption=caption, thumb=thumb, progress=upload_progress)
+        ep_id = callback_query.data.split("_", 1)[1]
+
+        url = f"https://animepahe.ru/api?m=embed&id={ep_id}"
+        res = session.get(url).json()
+
+        embed_url = res.get("data", {}).get("url")
+        if not embed_url:
+            await callback_query.answer("❌ Stream link not found.", show_alert=True)
+            return
+
+        buttons = InlineKeyboardMarkup([[
+            InlineKeyboardButton("▶️ Watch Now", url=embed_url)
+        ]])
+
+        await callback_query.message.edit_text(
+            f"<b>Episode Stream</b>\n\n<a href='{embed_url}'>Click here to watch</a>",
+            reply_markup=buttons,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True
+        )
+
     except Exception as e:
-        await msg.edit_text(f"❌ Upload failed:\n<code>{str(e)}</code>", parse_mode="html")
-        return
+        logger.error(f"episode_callback error: {e}")
+        await callback_query.answer("⚠️ Something went wrong.", show_alert=True)
 
-    await msg.edit_text("✅ <b>Upload complete!</b>", parse_mode="html")
 
-    if thumb and os.path.exists(thumb):
-        os.remove(thumb)
-    if os.path.exists(download_dir):
-        os.rmdir(download_dir)
+# --- Handle pagination (Prev / Next buttons) ---
+@Client.on_callback_query(filters.regex(r"^page_"))
+async def pagination_callback(client: Client, callback_query: CallbackQuery):
+    try:
+        parts = callback_query.data.split("_")
+        action, session_id, page = parts[1], parts[2], int(parts[3])
+
+        url = f"https://animepahe.ru/api?m=release&id={session_id}&sort=episode_asc&page={page}"
+        res = session.get(url).json()
+
+        episodes = res.get("data", [])
+        if not episodes:
+            await callback_query.answer("❌ No more episodes.", show_alert=True)
+            return
+
+        buttons = []
+        for ep in episodes[:10]:
+            ep_num = ep.get("episode")
+            ep_id = ep.get("session")
+            buttons.append([
+                InlineKeyboardButton(f"Episode {ep_num}", callback_data=f"episode_{ep_id}")
+            ])
+
+        nav = []
+        if page > 1:
+            nav.append(InlineKeyboardButton("⏪ Prev", callback_data=f"page_prev_{session_id}_{page-1}"))
+        nav.append(InlineKeyboardButton("Next ⏩", callback_data=f"page_next_{session_id}_{page+1}"))
+
+        if nav:
+            buttons.append(nav)
+
+        await callback_query.message.edit_text(
+            "<b>📺 Episodes List</b>\n\nSelect an episode below:",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode=ParseMode.HTML
+        )
+
+    except Exception as e:
+        logger.error(f"pagination_callback error: {e}")
+        await callback_query.answer("⚠️ Something went wrong.", show_alert=True)
