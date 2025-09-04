@@ -65,7 +65,7 @@ def anime_details(client, callback_query: CallbackQuery):
             f"**Score**: {anime['score']}\n"
             f"[Anime Link]({anime_link})\n\n"
             f"**Bot Made By**\n"
-            f"    **[RAHAT](tg://user?id=1235222889)**"
+            f"    **[Dot](Piras_Official.t.me)**"
         )
 
         # Save session data
