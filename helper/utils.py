@@ -41,21 +41,30 @@ def format_upload_progress(filename, uploaded, total, speed, eta, mode):
 import time
 from pyrogram.types import Message
 
-# Progress callback
+# Track last update times globally
+_last_update_time = {}
+
 async def progress_callback(current, total, client, message: Message, filename: str, mode: str, start_time: float):
     try:
-        elapsed_time = time.time() - start_time
-        speed = current / elapsed_time if elapsed_time > 0 else 0
-        eta = (total - current) / speed if speed > 0 else 0
+        now = time.time()
+        key = message.chat.id  # unique key per chat
 
-        progress_text = format_upload_progress(
-            filename=filename,
-            uploaded=current,
-            total=total,
-            speed=speed,
-            eta=eta,
-            mode=mode.capitalize()
-        )
-        await message.edit_text(progress_text)
+        # Update only every 10 seconds OR when finished
+        if key not in _last_update_time or (now - _last_update_time[key] >= 10 or current == total):
+            _last_update_time[key] = now
+
+            elapsed_time = now - start_time
+            speed = current / elapsed_time if elapsed_time > 0 else 0
+            eta = (total - current) / speed if speed > 0 else 0
+
+            progress_text = format_upload_progress(
+                filename=filename,
+                uploaded=current,
+                total=total,
+                speed=speed,
+                eta=eta,
+                mode=mode.capitalize()
+            )
+            await message.edit_text(progress_text)
     except Exception:
         pass
