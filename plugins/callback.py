@@ -18,6 +18,25 @@ import os, re, logging
 episode_data = {}
 logger = logging.getLogger(__name__)
 
+from uuid import uuid4
+
+# In-memory callback storage
+CALLBACK_CACHE = {}  # {short_key: (prefix, real_value)}
+
+def store_callback_data(prefix: str, real_value: str) -> str:
+    """Store real data and return a safe short callback key."""
+    key = str(uuid4())[:8]
+    CALLBACK_CACHE[key] = (prefix, real_value)
+    return f"{prefix}_{key}"
+
+def resolve_callback_data(data: str):
+    """Resolve short callback key back to real data."""
+    try:
+        prefix, key = data.split("_", 1)
+        return CALLBACK_CACHE.get(key, (prefix, None))
+    except Exception:
+        return None, None
+
 # ================= Anime details ================= #
 @Client.on_callback_query(filters.regex(r"^anime_"))
 def anime_details(client, callback_query: CallbackQuery):
