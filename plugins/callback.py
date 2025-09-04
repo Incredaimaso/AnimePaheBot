@@ -208,11 +208,15 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 # Track cancel requests per user
 cancel_flags = {}
 
-# ================= Download + Upload with Progress + Cancel ================= #
+# ================= Download + Upload ================= #
+def can_pin(message):
+    return message.chat.type in ["group", "supergroup"]
+
 @Client.on_callback_query(filters.regex(r"^dl_"))
 def download_and_upload_file(client, callback_query: CallbackQuery):
     download_url = callback_query.data.split("dl_")[1]
     user_id = callback_query.from_user.id
+    chat_id = callback_query.message.chat.id
     username = callback_query.from_user.username or "Unknown User"
 
     try:
@@ -244,13 +248,25 @@ def download_and_upload_file(client, callback_query: CallbackQuery):
     os.makedirs(user_download_dir, exist_ok=True)
     download_path = os.path.join(user_download_dir, filename)
 
-    dl_msg = callback_query.message.reply_text(f"<b>Added to queue:</b>\n <pre>{filename}</pre>\n<b>Downloading now...</b>")
+    # Initial progress message
+    progress_msg = client.send_message(
+        chat_id,
+        f"📥 Added to queue:\n<code>{filename}</code>\n<b>Downloading now...</b>",
+    )
+
+    # ✅ Pin only in groups
+    if can_pin(callback_query.message):
+        try:
+            client.pin_chat_message(chat_id, progress_msg.id, disable_notification=True)
+        except Exception as e:
+            logger.warning(f"Pin failed: {e}")
 
     try:
-        # ====== Download ====== #
+        # Download
         download_file(direct_link, download_path)
-        dl_msg.edit("<b>Episode downloaded, preparing upload...</b>")
+        progress_msg.edit_text("<b>Episode downloaded, uploading...</b>")
 
+        # Prepare thumbnail
         thumb_path = None
         poster_url = episode_data.get(user_id, {}).get("poster")
         user_thumb = get_thumbnail(user_id)
@@ -264,57 +280,31 @@ def download_and_upload_file(client, callback_query: CallbackQuery):
                 for chunk in resp.iter_content(1024):
                     f.write(chunk)
 
+        # Caption
         caption = get_caption(user_id) or filename
 
-        # ====== Upload with progress ====== #
-        chat_id = callback_query.message.chat.id
-        progress_msg = client.send_message(
+        # Upload with progress
+        send_and_delete_file(
+            client,
             chat_id,
-            f"📤 Starting upload...\n<code>{filename}</code>",
-            reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("❌ Cancel Upload", callback_data=f"cancel_{user_id}")]]
-            )
-        )
-        client.pin_chat_message(chat_id, progress_msg.id, disable_notification=True)
-
-        cancel_flags[user_id] = False  # reset cancel flag
-        start_time = time.time()
-
-        def progress(current, total):
-            # Check cancel flag
-            if cancel_flags.get(user_id):
-                raise Exception("Upload canceled by user")
-
-            now = time.time()
-            if now - getattr(progress, "last_update", 0) >= 10:  # update every 10s
-                speed = current / (now - start_time + 1)
-                eta = (total - current) / (speed + 1)
-                progress_text = format_upload_progress(filename, current, total, speed, eta, "Video")
-                try:
-                    progress_msg.edit_text(
-                        progress_text,
-                        reply_markup=InlineKeyboardMarkup(
-                            [[InlineKeyboardButton("❌ Cancel Upload", callback_data=f"cancel_{user_id}")]]
-                        )
-                    )
-                except Exception:
-                    pass
-                progress.last_update = now
-
-        client.send_video(
-            chat_id,
-            video=download_path,
-            caption=caption,
-            thumb=thumb_path,
-            progress=progress,
-            progress_args=()
+            download_path,
+            thumb_path,
+            caption,
+            user_id,
+            progress_msg  # ✅ Pass progress message
         )
 
-        # ====== Finish ====== #
         remove_from_queue(user_id, direct_link)
-        progress_msg.edit_text("✅ <b>Episode Uploaded 🎉</b>")
-        client.unpin_chat_message(chat_id, progress_msg.id)
+        progress_msg.edit_text("<b>✅ Episode Uploaded 🎉</b>")
 
+        # ✅ Unpin only in groups
+        if can_pin(callback_query.message):
+            try:
+                client.unpin_chat_message(chat_id, progress_msg.id)
+            except Exception as e:
+                logger.warning(f"Unpin failed: {e}")
+
+        # Cleanup
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
         if os.path.exists(user_download_dir):
@@ -322,17 +312,7 @@ def download_and_upload_file(client, callback_query: CallbackQuery):
 
     except Exception as e:
         logger.error(f"Download/Upload error: {e}")
-        if "canceled" in str(e).lower():
-            try:
-                progress_msg.edit_text("🚫 Upload canceled by user.")
-                client.unpin_chat_message(callback_query.message.chat.id, progress_msg.id)
-            except:
-                pass
-            # Clean up partial files
-            if os.path.exists(user_download_dir):
-                remove_directory(user_download_dir)
-        else:
-            callback_query.message.reply_text(f"Error: {str(e)}")
+        progress_msg.edit_text(f"❌ Error: {str(e)}")
 
 
 # ================= Cancel Handler ================= #
