@@ -15,10 +15,16 @@ user_data_col = db['users']
 filename_format_dict = {}
 
 def save_filename_format(user_id, format_str):
-    filename_format_dict[user_id] = format_str
+    filename_format_col.update_one(
+        {"user_id": user_id},
+        {"$set": {"format": format_str}},
+        upsert=True
+    )
 
 def get_filename_format(user_id):
-    return filename_format_dict.get(user_id, "EP{episode_number} - {title} [{resolution}] [{type}]")
+    record = filename_format_col.find_one({"user_id": user_id})
+    # Default fallback if none found
+    return record["format"] if record else "EP{episode_number} - {title} [{resolution}] [{type}]"
 
 # Utility: Save thumbnail
 def save_thumbnail(user_id, file_id):
@@ -89,5 +95,6 @@ def full_userbase():
 def del_user(user_id: int):
     user_data_col.delete_one({'_id': user_id})
     return
+
 
 
