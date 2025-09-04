@@ -37,3 +37,25 @@ def format_upload_progress(filename, uploaded, total, speed, eta, mode):
         f"┣⪼ ⏰️ Eᴛᴀ: {time_formatter(eta)}\n"
         f"╰━━━━━━━━━━━━━━━➣"
     )
+
+import time
+from pyrogram.types import Message
+
+# Progress callback
+async def progress_callback(current, total, client, message: Message, filename: str, mode: str, start_time: float):
+    try:
+        elapsed_time = time.time() - start_time
+        speed = current / elapsed_time if elapsed_time > 0 else 0
+        eta = (total - current) / speed if speed > 0 else 0
+
+        progress_text = format_upload_progress(
+            filename=filename,
+            uploaded=current,
+            total=total,
+            speed=speed,
+            eta=eta,
+            mode=mode.capitalize()
+        )
+        await message.edit_text(progress_text)
+    except Exception:
+        pass
