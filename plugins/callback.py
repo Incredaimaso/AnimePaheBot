@@ -203,7 +203,12 @@ def change_upload_method(client, callback_query: CallbackQuery):
     callback_query.message.edit_reply_markup(InlineKeyboardMarkup(buttons))
 
 
-# ================= Download + Upload ================= #
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+# Track cancel requests per user
+cancel_flags = {}
+
+# ================= Download + Upload with Progress + Cancel ================= #
 @Client.on_callback_query(filters.regex(r"^dl_"))
 def download_and_upload_file(client, callback_query: CallbackQuery):
     download_url = callback_query.data.split("dl_")[1]
@@ -242,8 +247,9 @@ def download_and_upload_file(client, callback_query: CallbackQuery):
     dl_msg = callback_query.message.reply_text(f"<b>Added to queue:</b>\n <pre>{filename}</pre>\n<b>Downloading now...</b>")
 
     try:
+        # ====== Download ====== #
         download_file(direct_link, download_path)
-        dl_msg.edit("<b>Episode downloaded, uploading...</b>")
+        dl_msg.edit("<b>Episode downloaded, preparing upload...</b>")
 
         thumb_path = None
         poster_url = episode_data.get(user_id, {}).get("poster")
@@ -259,10 +265,55 @@ def download_and_upload_file(client, callback_query: CallbackQuery):
                     f.write(chunk)
 
         caption = get_caption(user_id) or filename
-        send_and_delete_file(client, callback_query.message.chat.id, download_path, thumb_path, caption, user_id)
 
+        # ====== Upload with progress ====== #
+        chat_id = callback_query.message.chat.id
+        progress_msg = client.send_message(
+            chat_id,
+            f"📤 Starting upload...\n<code>{filename}</code>",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("❌ Cancel Upload", callback_data=f"cancel_{user_id}")]]
+            )
+        )
+        client.pin_chat_message(chat_id, progress_msg.id, disable_notification=True)
+
+        cancel_flags[user_id] = False  # reset cancel flag
+        start_time = time.time()
+
+        def progress(current, total):
+            # Check cancel flag
+            if cancel_flags.get(user_id):
+                raise Exception("Upload canceled by user")
+
+            now = time.time()
+            if now - getattr(progress, "last_update", 0) >= 10:  # update every 10s
+                speed = current / (now - start_time + 1)
+                eta = (total - current) / (speed + 1)
+                progress_text = format_upload_progress(filename, current, total, speed, eta, "Video")
+                try:
+                    progress_msg.edit_text(
+                        progress_text,
+                        reply_markup=InlineKeyboardMarkup(
+                            [[InlineKeyboardButton("❌ Cancel Upload", callback_data=f"cancel_{user_id}")]]
+                        )
+                    )
+                except Exception:
+                    pass
+                progress.last_update = now
+
+        client.send_video(
+            chat_id,
+            video=download_path,
+            caption=caption,
+            thumb=thumb_path,
+            progress=progress,
+            progress_args=()
+        )
+
+        # ====== Finish ====== #
         remove_from_queue(user_id, direct_link)
-        dl_msg.edit("<b><pre>Episode Uploaded 🎉</pre></b>")
+        progress_msg.edit_text("✅ <b>Episode Uploaded 🎉</b>")
+        client.unpin_chat_message(chat_id, progress_msg.id)
 
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
@@ -271,7 +322,25 @@ def download_and_upload_file(client, callback_query: CallbackQuery):
 
     except Exception as e:
         logger.error(f"Download/Upload error: {e}")
-        callback_query.message.reply_text(f"Error: {str(e)}")
+        if "canceled" in str(e).lower():
+            try:
+                progress_msg.edit_text("🚫 Upload canceled by user.")
+                client.unpin_chat_message(callback_query.message.chat.id, progress_msg.id)
+            except:
+                pass
+            # Clean up partial files
+            if os.path.exists(user_download_dir):
+                remove_directory(user_download_dir)
+        else:
+            callback_query.message.reply_text(f"Error: {str(e)}")
+
+
+# ================= Cancel Handler ================= #
+@Client.on_callback_query(filters.regex(r"^cancel_"))
+def cancel_upload(client, callback_query: CallbackQuery):
+    user_id = int(callback_query.data.split("_")[1])
+    cancel_flags[user_id] = True
+    callback_query.answer("❌ Upload canceled!", show_alert=True)
 
 
 # ================= Help / Close ================= #
