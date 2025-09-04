@@ -1,14 +1,12 @@
 #..........This Bot Made By [RAHAT](https://t.me/r4h4t_69)..........#
 #..........Anyone Can Modify This As He Likes..........#
-#..........Just one requests do not remove my credit..........#
-
+#..........Just one request: do not remove my credit..........#
 
 import requests
 import re
 
-
-
 s = requests.session()
+
 
 def step_2(s, seperator, base=10):
     mapped_range = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+/"
@@ -22,6 +20,7 @@ def step_2(s, seperator, base=10):
         max_iter = (max_iter - (max_iter % base)) / base
     return mid or '0'
 
+
 def step_1(data, key, load, seperator):
     payload = ""
     i = 0
@@ -29,23 +28,39 @@ def step_1(data, key, load, seperator):
     load = int(load)
     while i < len(data):
         s = ""
-        while data[i] != key[seperator]:
+        while i < len(data) and data[i] != key[seperator]:
             s += data[i]
             i += 1
         for index, value in enumerate(key):
             s = s.replace(value, str(index))
         payload += chr(int(step_2(s, seperator, 10)) - load)
         i += 1
-    payload = re.findall(
+    match = re.findall(
         r'action="([^\"]+)" method="POST"><input type="hidden" name="_token"\s+value="([^\"]+)', payload
-    )[0]
-    return payload
+    )
+    if not match:
+        raise RuntimeError("Failed to extract payload (site may have changed)")
+    return match[0]
 
-def get_dl_link(link: str):
-    resp = s.get(link)
-    data, key, load, seperator = re.findall(r'\("(\S+)",\d+,"(\S+)",(\d+),(\d+)', resp.text)[0]
-    url, token = step_1(data=data, key=key, load=load, seperator=seperator)
-    data = {"_token": token}
-    headers = {'referer': link}
-    resp = s.post(url=url, data=data, headers=headers, allow_redirects=False)
-    return resp.headers["location"]
+
+def get_dl_link(link: str) -> str:
+    try:
+        resp = s.get(link, timeout=15)
+        regex = re.findall(r'\("(\S+)",\d+,"(\S+)",(\d+),(\d+)', resp.text)
+        if not regex:
+            raise RuntimeError("No obfuscation pattern found in page")
+
+        data, key, load, seperator = regex[0]
+        url, token = step_1(data=data, key=key, load=load, seperator=seperator)
+
+        data = {"_token": token}
+        headers = {"referer": link}
+        resp = s.post(url=url, data=data, headers=headers, allow_redirects=False, timeout=15)
+
+        if "location" not in resp.headers:
+            raise RuntimeError("No redirect location found in response headers")
+
+        return resp.headers["location"]
+
+    except Exception as e:
+        raise RuntimeError(f"Error generating direct link: {e}")
