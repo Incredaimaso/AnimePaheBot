@@ -118,9 +118,11 @@ def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="",
         caption_with_info = f"{caption}\n\n{user_details}"
 
         start_time = time.time()
+        last_update = 0  # prevent spamming
 
         # Progress callback
         def progress(current, total):
+            nonlocal last_update
             now = time.time()
             diff = now - start_time
             if diff == 0:
@@ -129,7 +131,9 @@ def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="",
                 speed = current / diff
             eta = int((total - current) / speed) if speed > 0 else 0
 
-            if progress_msg and int(diff) % 10 == 0:  # update every 10 seconds
+            # Update every 10s max
+            if progress_msg and (now - last_update >= 10 or current == total):
+                last_update = now
                 try:
                     progress_text = format_upload_progress(
                         os.path.basename(file_path),
@@ -143,24 +147,28 @@ def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="",
                 except Exception:
                     pass  # ignore update errors
 
-        # Upload file
+        # --- Upload file ---
         if upload_method == "document":
             sent_message = client.send_document(
                 chat_id,
                 file_path,
                 thumb=thumbnail if thumbnail else None,
-                caption=caption,
+                caption=caption or os.path.basename(file_path),
                 progress=progress,
                 progress_args=()
             )
         else:
+            # Extract media info safely
             details = get_media_details(file_path)
-            width, height, duration = None, None, None
+            width = height = duration = None
             if details:
-                width, height, duration = details
-                width = int(width) if width else None
-                height = int(height) if height else None
-                duration = int(float(duration)) if duration else None
+                try:
+                    w, h, d = details
+                    width = int(w) if w and str(w).isdigit() else None
+                    height = int(h) if h and str(h).isdigit() else None
+                    duration = int(float(d)) if d and str(d).replace('.', '', 1).isdigit() else None
+                except Exception:
+                    pass
 
             sent_message = client.send_video(
                 chat_id,
@@ -170,13 +178,13 @@ def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="",
                 height=height,
                 supports_streaming=True,
                 has_spoiler=True,
-                thumb=None,
-                caption=caption,
+                thumb=thumbnail if thumbnail else None,
+                caption=caption or os.path.basename(file_path),
                 progress=progress,
                 progress_args=()
             )
 
-        # Forward to log channel
+        # --- Forward to log channel ---
         client.copy_message(
             chat_id=forwarding_channel,
             from_chat_id=chat_id,
@@ -184,14 +192,17 @@ def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="",
             caption=caption_with_info
         )
 
-        # Cleanup
-        os.remove(file_path)
+        # --- Cleanup ---
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        if thumbnail and os.path.exists(thumbnail):
+            os.remove(thumbnail)
 
         if progress_msg:
             progress_msg.edit_text(f"✅ Upload complete:\n<code>{os.path.basename(file_path)}</code>")
 
     except Exception as e:
-        client.send_message(chat_id, f"Error: {str(e)}")
+        client.send_message(chat_id, f"❌ Upload Error: {str(e)}")
         
 
 def remove_directory(directory_path):
