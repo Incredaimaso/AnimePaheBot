@@ -14,6 +14,9 @@ user_data_col = db['users']
 
 filename_format_dict = {}
 
+# Add this near your other collections
+filename_format_col = db["filename_formats"]
+
 def save_filename_format(user_id, format_str):
     filename_format_col.update_one(
         {"user_id": user_id},
@@ -23,9 +26,8 @@ def save_filename_format(user_id, format_str):
 
 def get_filename_format(user_id):
     record = filename_format_col.find_one({"user_id": user_id})
-    # Default fallback if none found
     return record["format"] if record else "EP{episode_number} - {title} [{resolution}] [{type}]"
-
+    
 # Utility: Save thumbnail
 def save_thumbnail(user_id, file_id):
     thumbnails_col.update_one(
@@ -95,6 +97,7 @@ def full_userbase():
 def del_user(user_id: int):
     user_data_col.delete_one({'_id': user_id})
     return
+
 
 
 
