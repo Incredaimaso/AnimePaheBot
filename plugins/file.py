@@ -22,17 +22,15 @@ def create_short_name(name):
         short_name = ''.join(word[0].upper() for word in name.split())					
         return short_name    
     return name
+    
 def get_media_details(path):
     try:
-        # Run ffprobe command to get media info in JSON format
         result = subprocess.run(
             [
                 "ffprobe",
                 "-hide_banner",
-                "-loglevel",
-                "error",
-                "-print_format",
-                "json",
+                "-loglevel", "error",
+                "-print_format", "json",
                 "-show_format",
                 "-show_streams",
                 path,
@@ -42,23 +40,33 @@ def get_media_details(path):
         )
 
         if result.returncode != 0:
-            print(f"Error: Unable to process the file. FFprobe output:\n{result.stderr}")
-            return None
+            print(f"FFprobe error:\n{result.stderr}")
+            return None, None, None
 
-        # Parse JSON output
         media_info = json.loads(result.stdout)
 
-        # Extract width, height, and duration
-        video_stream = next((stream for stream in media_info["streams"] if stream["codec_type"] == "video"), None)
+        video_stream = next(
+            (stream for stream in media_info.get("streams", []) if stream.get("codec_type") == "video"),
+            None
+        )
+
+        # Safe parsing
         width = video_stream.get("width") if video_stream else None
         height = video_stream.get("height") if video_stream else None
-        duration = media_info["format"].get("duration")
+        duration = media_info.get("format", {}).get("duration")
 
-        return width, height, duration
+        # Force convert to safe numeric or None
+        def safe_int(val):
+            try:
+                return int(float(val))
+            except (TypeError, ValueError):
+                return None
+
+        return safe_int(width), safe_int(height), safe_int(duration)
 
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
+        print(f"FFprobe exception: {e}")
+        return None, None, None
 
 def download_file(url, download_path):
     with requests.get(url, stream=True) as r:
