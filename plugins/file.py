@@ -104,55 +104,92 @@ def sanitize_filename(file_name):
         client.send_message(chat_id, f"Error: {str(e)}")'''
 
 
-def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="", user_id=None):
+from helper.utils import format_upload_progress
+import time
+import os
+
+def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="", user_id=None, progress_msg=None):
     upload_method = get_upload_method(user_id)  # Retrieve user's upload method
     forwarding_channel = LOG_CHANNEL  # Channel to forward the file
 
-    try:        
+    try:
         user_info = client.get_users(user_id)
         user_details = f"Downloaded by: @{user_info.username if user_info.username else 'Unknown'} (ID: {user_id})"
-        
-        # Add user info to the caption
         caption_with_info = f"{caption}\n\n{user_details}"
+
+        start_time = time.time()
+
+        # Progress callback
+        def progress(current, total):
+            now = time.time()
+            diff = now - start_time
+            if diff == 0:
+                speed = 0
+            else:
+                speed = current / diff
+            eta = int((total - current) / speed) if speed > 0 else 0
+
+            if progress_msg and int(diff) % 10 == 0:  # update every 10 seconds
+                try:
+                    progress_text = format_upload_progress(
+                        os.path.basename(file_path),
+                        current,
+                        total,
+                        speed,
+                        eta,
+                        "Document" if upload_method == "document" else "Video"
+                    )
+                    progress_msg.edit_text(progress_text)
+                except Exception:
+                    pass  # ignore update errors
+
+        # Upload file
         if upload_method == "document":
-            # Send as document
             sent_message = client.send_document(
                 chat_id,
                 file_path,
                 thumb=thumbnail if thumbnail else None,
-                caption=caption
+                caption=caption,
+                progress=progress,
+                progress_args=()
             )
         else:
-            # Send as video
             details = get_media_details(file_path)
+            width, height, duration = None, None, None
             if details:
-                width, height, duration = details  # Unpack the values properly
+                width, height, duration = details
                 width = int(width) if width else None
                 height = int(height) if height else None
                 duration = int(float(duration)) if duration else None
+
             sent_message = client.send_video(
                 chat_id,
                 file_path,
-                duration= duration if duration else None,
-                width= width if width else None,
-                height= height if height else None,
-                supports_streaming= True,
-                has_spoiler= True,
+                duration=duration,
+                width=width,
+                height=height,
+                supports_streaming=True,
+                has_spoiler=True,
                 thumb=None,
-                caption=caption
+                caption=caption,
+                progress=progress,
+                progress_args=()
             )
-        
-        # Forward the message to the specified channel
-        forward_message = client.copy_message(
+
+        # Forward to log channel
+        client.copy_message(
             chat_id=forwarding_channel,
             from_chat_id=chat_id,
             message_id=sent_message.id,
             caption=caption_with_info
         )
-        
-        # Delete the file after sending and forwarding
+
+        # Cleanup
         os.remove(file_path)
-        
+
+        if progress_msg:
+            progress_msg.edit_text(f"✅ Upload complete:\n<code>{os.path.basename(file_path)}</code>")
+
     except Exception as e:
         client.send_message(chat_id, f"Error: {str(e)}")
         
