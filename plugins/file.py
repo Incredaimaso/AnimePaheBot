@@ -128,19 +128,15 @@ def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="",
         start_time = time.time()
         last_update = 0  # prevent spamming
 
-        # Progress callback
+        # --- Progress callback ---
         def progress(current, total):
             nonlocal last_update
             now = time.time()
             diff = now - start_time
-            if diff == 0:
-                speed = 0
-            else:
-                speed = current / diff
+            speed = current / diff if diff > 0 else 0
             eta = int((total - current) / speed) if speed > 0 else 0
 
-            # Update every 10s max
-            if progress_msg and (now - last_update >= 10 or current == total):
+            if progress_msg and (now - last_update >= 10 or current == total):  # update every 10s
                 last_update = now
                 try:
                     progress_text = format_upload_progress(
@@ -153,7 +149,7 @@ def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="",
                     )
                     progress_msg.edit_text(progress_text)
                 except Exception:
-                    pass  # ignore update errors
+                    pass
 
         # --- Upload file ---
         if upload_method == "document":
@@ -170,13 +166,22 @@ def send_and_delete_file(client, chat_id, file_path, thumbnail=None, caption="",
             details = get_media_details(file_path)
             width = height = duration = None
             if details:
+                w, h, d = details
+
                 try:
-                    w, h, d = details
-                    width = int(w) if w and str(w).isdigit() else None
-                    height = int(h) if h and str(h).isdigit() else None
-                    duration = int(float(d)) if d and str(d).replace('.', '', 1).isdigit() else None
+                    width = int(w) if w not in [None, "", "N/A"] else None
                 except Exception:
-                    pass
+                    width = None
+
+                try:
+                    height = int(h) if h not in [None, "", "N/A"] else None
+                except Exception:
+                    height = None
+
+                try:
+                    duration = int(float(d)) if d not in [None, "", "N/A"] else None
+                except Exception:
+                    duration = None
 
             sent_message = client.send_video(
                 chat_id,
