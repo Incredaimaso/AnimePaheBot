@@ -240,7 +240,7 @@ def download_and_upload_file(client, callback_query: CallbackQuery):
     dtype = "Dub" if 'eng' in download_button_title.lower() else "Sub"
 
     short_name = create_short_name(title)
-    file_name = f"[{dtype}] [{short_name}] [EP {episode_number}] [{resolution}].mp4"
+    file_name = f"[EP {episode_number}] [{short_name}] [{resolution}] [{dtype}].mkv"
     filename = sanitize_filename(file_name)
     random_str = random_string(5)
 
