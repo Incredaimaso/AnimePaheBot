@@ -306,7 +306,7 @@ def send_latest_anime(client, message):
             message.reply_text(f"Failed to fetch data from the API. Status code: {response.status_code}")
     
     except Exception as e:
-        client.send_message(-100243227575, f"Error: {e}")
+        client.send_message(-1002432275758, f"Error: {e}")
         message.reply_text("Something went wrong. Please try again later.")
 
 
