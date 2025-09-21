@@ -175,7 +175,7 @@ def search_anime(client, message):
         message.reply_text(f"Usage: <code> /anime anime_name</code>")
         return
 
-    search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
+    search_url = f"https://animepahe.si/api?m=search&q={query.replace(' ', '+')}"
     response = session.get(search_url).json()
 
     if response['total'] == 0:
@@ -280,7 +280,7 @@ def view_queue(client, message):
 def send_latest_anime(client, message):
     try:
         # Fetch the latest airing anime from AnimePahe
-        API_URL = "https://animepahe.ru/api?m=airing&page=1"
+        API_URL = "https://animepahe.si/api?m=airing&page=1"
         response = session.get(API_URL)
         if response.status_code == 200:
             data = response.json()
@@ -297,7 +297,7 @@ def send_latest_anime(client, message):
                 title = anime.get('anime_title')
                 anime_session = anime.get('anime_session')
                 episode = anime.get('episode')
-                link = f"https://animepahe.ru/anime/{anime_session }"
+                link = f"https://animepahe.si/anime/{anime_session }"
                 latest_anime_text += f"<b>{idx}) <a href='{link}'>{title}</a> [E{episode}]</b>\n"
 
             # Send the formatted anime list with clickable links
@@ -314,7 +314,7 @@ def send_latest_anime(client, message):
 def send_latest_anime(client, message):
     try:
         # Fetch the latest airing anime from AnimePahe
-        API_URL = "https://animepahe.ru/anime/airing"
+        API_URL = "https://animepahe.si/anime/airing"
         response = session.get(API_URL)
         if response.status_code == 200:          
             soup = BeautifulSoup(response.text, "html.parser")
@@ -331,7 +331,7 @@ def send_latest_anime(client, message):
             airing_anime_text = "<b>🎬 Currently Airing Anime:</b>\n\n"
             for idx, anime in enumerate(anime_list, start=1):
                 title = anime.get("title", "Unknown Title")
-                link = "https://animepahe.ru" + anime["href"]
+                link = "https://animepahe.si" + anime["href"]
                 #airing_anime_text += f"<b>{idx}) <a href='{link}'>{title}</a></b>\n"
                 airing_anime_text += f"<b>{idx}){title}</b>\n"
 
