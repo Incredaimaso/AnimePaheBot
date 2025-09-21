@@ -35,7 +35,7 @@ async def inline_search(client: Client, inline_query: InlineQuery):
             )
             return
 
-        url = f"https://animepahe.ru/api?m=search&q={query}"
+        url = f"https://animepahe.si/api?m=search&q={query}"
         res = session.get(url).json()
 
         data = res.get("data", [])
