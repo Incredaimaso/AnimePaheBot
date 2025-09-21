@@ -43,7 +43,7 @@ def anime_details(client, callback_query: CallbackQuery):
     try:
         session_id = callback_query.data.split("anime_")[1]
         query = user_queries.get(callback_query.message.chat.id, "")
-        search_url = f"https://animepahe.ru/api?m=search&q={query.replace(' ', '+')}"
+        search_url = f"https://animepahe.si/api?m=search&q={query.replace(' ', '+')}"
         response = session.get(search_url).json()
 
         anime = next((a for a in response['data'] if a['session'] == session_id), None)
@@ -53,7 +53,7 @@ def anime_details(client, callback_query: CallbackQuery):
 
         title = anime['title']
         poster_url = anime['poster']
-        anime_link = f"https://animepahe.ru/anime/{session_id}"
+        anime_link = f"https://animepahe.si/anime/{session_id}"
 
         message_text = (
             f"**Title**: {title}\n"
@@ -98,7 +98,7 @@ def episode_list(client, callback_query: CallbackQuery, page=1):
         return
 
     session_id = session_data['session_id']
-    episodes_url = f"https://animepahe.ru/api?m=release&id={session_id}&sort=episode_asc&page={page}"
+    episodes_url = f"https://animepahe.si/api?m=release&id={session_id}&sort=episode_asc&page={page}"
     response = session.get(episodes_url).json()
 
     episodes = response.get('data', [])
@@ -169,7 +169,7 @@ def fetch_download_links(client, callback_query: CallbackQuery):
     episode_session = episodes[episode_number]
     episode_data[user_id]['current_episode'] = episode_number
 
-    url = f"https://animepahe.ru/play/{session_data['session_id']}/{episode_session}"
+    url = f"https://animepahe.si/play/{session_data['session_id']}/{episode_session}"
     response = session.get(url)
     soup = BeautifulSoup(response.content, "html.parser")
 
