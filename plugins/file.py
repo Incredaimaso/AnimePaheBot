@@ -3,6 +3,7 @@
 #..........Just one requests do not remove my credit..........#
 
 import requests
+import urllib3
 import os
 import string
 import random
@@ -69,18 +70,21 @@ def get_media_details(path):
         print(f"FFprobe exception: {e}")
         return None, None, None
 
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 def download_file(url, download_path):
     try:
-        with session.get(url, stream=True, verify=False) as r:  # use shared session, skip SSL verify
+        with requests.get(url, stream=True, verify=False, timeout=60) as r:
             r.raise_for_status()
             with open(download_path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
         return download_path
-    except Exception as e:
-        raise RuntimeError(f"Download failed for {url}: {e}")
-
+    except requests.exceptions.RequestException as e:
+        print(f"Download failed: {e}")
+        return None
 
 def sanitize_filename(file_name):
     # Remove invalid characters from the file name
