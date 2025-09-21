@@ -212,6 +212,22 @@ cancel_flags = {}
 def can_pin(message):
     return message.chat.type in ["group", "supergroup"]
 
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def download_file_safe(url, download_path):
+    try:
+        with requests.get(url, stream=True, verify=False, timeout=60) as r:
+            r.raise_for_status()
+            with open(download_path, 'wb') as f:
+                for chunk in r.iter_content(8192):
+                    if chunk:
+                        f.write(chunk)
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"Download failed: {e}")
+        return False
+
 @Client.on_callback_query(filters.regex(r"^dl_"))
 def download_and_upload_file(client, callback_query: CallbackQuery):
     download_url = callback_query.data.split("dl_")[1]
@@ -227,12 +243,12 @@ def download_and_upload_file(client, callback_query: CallbackQuery):
 
     add_to_queue(user_id, username, direct_link)
 
+    # File naming
     episode_number = episode_data.get(user_id, {}).get('current_episode', 'Unknown')
     title = episode_data.get(user_id, {}).get('title', 'Unknown Title')
-
-    # Extract source/resolution
     download_button_title = next(
-        (b.text for row in callback_query.message.reply_markup.inline_keyboard for b in row if b.callback_data == f"dl_{download_url}"),
+        (b.text for row in callback_query.message.reply_markup.inline_keyboard 
+         for b in row if b.callback_data == f"dl_{download_url}"),
         "Unknown Source"
     )
     resolution = re.search(r"\b\d{3,4}p\b", download_button_title)
@@ -243,77 +259,57 @@ def download_and_upload_file(client, callback_query: CallbackQuery):
     file_name = f"[EP {episode_number}] [{short_name}] [{resolution}] [{dtype}].mkv"
     filename = sanitize_filename(file_name)
     random_str = random_string(5)
-
     user_download_dir = os.path.join(DOWNLOAD_DIR, str(user_id), random_str)
     os.makedirs(user_download_dir, exist_ok=True)
     download_path = os.path.join(user_download_dir, filename)
 
-    # Initial progress message
+    # Progress message
     progress_msg = client.send_message(
         chat_id,
         f"📥 Added to queue:\n<code>{filename}</code>\n<b>Downloading now...</b>",
     )
 
-    # ✅ Pin only in groups
     if can_pin(callback_query.message):
         try:
             client.pin_chat_message(chat_id, progress_msg.id, disable_notification=True)
         except Exception as e:
             logger.warning(f"Pin failed: {e}")
 
+    # --- Safe download ---
+    if not download_file_safe(direct_link, download_path):
+        progress_msg.edit_text("❌ Download failed. Check the URL or server.")
+        remove_from_queue(user_id, direct_link)
+        return
+
+    progress_msg.edit_text("<b>Episode downloaded, uploading...</b>")
+
+    # --- Prepare thumbnail ---
+    thumb_path = None
+    poster_url = episode_data.get(user_id, {}).get("poster")
+    user_thumb = get_thumbnail(user_id)
     try:
-        # Download
-        download_file(direct_link, download_path)
-        progress_msg.edit_text("<b>Episode downloaded, uploading...</b>")
-
-        # Prepare thumbnail
-        thumb_path = None
-        poster_url = episode_data.get(user_id, {}).get("poster")
-        user_thumb = get_thumbnail(user_id)
-
         if user_thumb:
             thumb_path = client.download_media(user_thumb)
         elif poster_url:
-            resp = requests.get(poster_url, stream=True)
+            resp = requests.get(poster_url, stream=True, verify=False, timeout=30)
             thumb_path = os.path.join(user_download_dir, "thumb_file.jpg")
             with open(thumb_path, "wb") as f:
                 for chunk in resp.iter_content(1024):
                     f.write(chunk)
-
-        # Caption
-        caption = get_caption(user_id) or filename
-
-        # Upload with progress
-        send_and_delete_file(
-            client,
-            chat_id,
-            download_path,
-            thumb_path,
-            caption,
-            user_id,
-            progress_msg  # ✅ Pass progress message
-        )
-
-        remove_from_queue(user_id, direct_link)
-        progress_msg.edit_text("<b>✅ Episode Uploaded 🎉</b>")
-
-        # ✅ Unpin only in groups
-        if can_pin(callback_query.message):
-            try:
-                client.unpin_chat_message(chat_id, progress_msg.id)
-            except Exception as e:
-                logger.warning(f"Unpin failed: {e}")
-
-        # Cleanup
-        if thumb_path and os.path.exists(thumb_path):
-            os.remove(thumb_path)
-        if os.path.exists(user_download_dir):
-            remove_directory(user_download_dir)
-
     except Exception as e:
-        logger.error(f"Download/Upload error: {e}")
-        progress_msg.edit_text(f"❌ Error: {str(e)}")
+        logger.warning(f"Thumbnail download failed: {e}")
+        thumb_path = None
 
+    # --- Upload ---
+    caption = get_caption(user_id) or filename
+    send_and_delete_file(client, chat_id, download_path, thumb_path, caption, user_id, progress_msg)
+    remove_from_queue(user_id, direct_link)
+
+    # --- Cleanup ---
+    if thumb_path and os.path.exists(thumb_path):
+        os.remove(thumb_path)
+    if os.path.exists(user_download_dir):
+        remove_directory(user_download_dir)
 
 # ================= Cancel Handler ================= #
 @Client.on_callback_query(filters.regex(r"^cancel_"))
