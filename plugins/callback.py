@@ -6,7 +6,7 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from plugins.queue import add_to_queue, remove_from_queue
 from plugins.direct_link import get_dl_link
-from plugins.headers import *
+from plugins.headers import session
 from plugins.file import *
 from plugins.commands import user_queries
 from helper.database import *
