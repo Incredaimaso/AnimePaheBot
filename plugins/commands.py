@@ -190,7 +190,7 @@ def search_anime(client, message):
     reply_markup = InlineKeyboardMarkup(anime_buttons)
     # Reply to the same message with anime title buttons
     #message.reply_text("Select an anime:", reply_markup=reply_markup, quote=True)
-    gif_url = "https://uploadnow.io/s/779edcef-b93e-4fbc-811b-03f57466f873?o=t"
+    gif_url = "https://download.horizoncdn.workers.dev/download/10509"
     message.reply_video(
         #chat_id=message.chat.id,
         video=gif_url,
