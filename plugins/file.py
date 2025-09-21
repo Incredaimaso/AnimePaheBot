@@ -9,6 +9,7 @@ import random
 import shutil
 import re
 from helper.database import*
+from plugins.headers import session
 import subprocess
 import json
 from config import LOG_CHANNEL
