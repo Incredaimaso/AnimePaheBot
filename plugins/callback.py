@@ -125,10 +125,24 @@ def episode_list(client, callback_query: CallbackQuery, page=1):
 
     reply_markup = InlineKeyboardMarkup(episode_buttons)
 
-    if callback_query.message.reply_markup is None:
-        callback_query.message.reply_text(f"Page {page}/{last_page}: Select an episode:", reply_markup=reply_markup)
-    else:
-        callback_query.message.edit_reply_markup(reply_markup)
+    try:
+        if not callback_query.message.reply_markup:
+            callback_query.message.reply_text(
+                f"Page {page}/{last_page}: Select an episode:",
+                reply_markup=reply_markup
+            )
+        else:
+            # Avoid redundant edit
+            if callback_query.message.reply_markup.inline_keyboard != reply_markup.inline_keyboard:
+                callback_query.message.edit_reply_markup(reply_markup)
+            else:
+                callback_query.answer("You're already on this page.", show_alert=False)
+    except Exception as e:
+        logger.error(f"edit_reply_markup failed: {e}")
+        callback_query.message.reply_text(
+            f"Page {page}/{last_page}: Select an episode:",
+            reply_markup=reply_markup
+        )
 
 
 @Client.on_callback_query(filters.regex(r"^page_"))
