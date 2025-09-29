@@ -110,11 +110,13 @@ def episode_list(client, callback_query: CallbackQuery, page=1):
         'episodes': {ep['episode']: ep['session'] for ep in episodes}
     })
 
+    # Build episode buttons
     episode_buttons = [
         [InlineKeyboardButton(f"Episode {ep['episode']}", callback_data=f"ep_{ep['episode']}")]
         for ep in episodes
     ]
 
+    # Navigation buttons
     nav_buttons = []
     if page > 1:
         nav_buttons.append(InlineKeyboardButton("<", callback_data=f"page_{page - 1}"))
@@ -123,22 +125,20 @@ def episode_list(client, callback_query: CallbackQuery, page=1):
     if nav_buttons:
         episode_buttons.append(nav_buttons)
 
+    # Safety check: at least one button must exist
+    if not episode_buttons:
+        episode_buttons = [[InlineKeyboardButton("Back", callback_data="help")]]
+
     reply_markup = InlineKeyboardMarkup(episode_buttons)
 
     try:
-        if not callback_query.message.reply_markup:
-            callback_query.message.reply_text(
-                f"Page {page}/{last_page}: Select an episode:",
-                reply_markup=reply_markup
-            )
-        else:
-            # Avoid redundant edit
-            if callback_query.message.reply_markup.inline_keyboard != reply_markup.inline_keyboard:
-                callback_query.message.edit_reply_markup(reply_markup)
-            else:
-                callback_query.answer("You're already on this page.", show_alert=False)
+        callback_query.message.edit_text(
+            f"Page {page}/{last_page}: Select an episode:",
+            reply_markup=reply_markup
+        )
     except Exception as e:
-        logger.error(f"edit_reply_markup failed: {e}")
+        # Fallback: try sending as a new message if editing fails
+        logger.error(f"Failed to send episode list: {e}")
         callback_query.message.reply_text(
             f"Page {page}/{last_page}: Select an episode:",
             reply_markup=reply_markup
